@@ -212,7 +212,7 @@ export function ExportDialog({ open, onOpenChange }: { open: boolean; onOpenChan
       <DialogContent>
         <DialogHeader>
           <DialogTitle>Export video</DialogTitle>
-          <DialogDescription>Captions are burned directly into the video using server-side FFmpeg rendering.</DialogDescription>
+          <DialogDescription>Captions are burned directly into the video using SUBLY&apos;s bundled FFmpeg.</DialogDescription>
         </DialogHeader>
 
         {!busy && !outputUrl && !failed && (
