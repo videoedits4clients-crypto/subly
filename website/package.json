@@ -4,8 +4,8 @@
   "private": true,
   "description": "Independent static marketing site for SUBLY — reuses components from the main app's src/components/landing/*; does not build or run the SUBLY application itself.",
   "scripts": {
-    "dev": "next dev",
-    "build": "next build",
+    "dev": "next dev --webpack",
+    "build": "next build --webpack",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {

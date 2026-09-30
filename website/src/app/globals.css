@@ -1,126 +1,24 @@
+/* Task 194632 (P19.27): `tailwind-generated.css` is a pre-compiled, committed snapshot of
+   Tailwind's output for the reused landing/download components (src/components/landing/**,
+   src/components/ui/button.tsx) plus this project's own design tokens and custom classes
+   (.text-gradient, .glow-accent, etc. — originally copied from the main app's globals.css).
+
+   It exists because Tailwind needs to scan those files' text for class names, but they live
+   outside this project's own root — every mechanism Tailwind v4 offers for that (a standalone
+   `@source "path";` at-rule, `@source inline(...)`, and the `source(...)` parameter on
+   `@import "tailwindcss"` itself) DOES work correctly under Next's webpack build (used here
+   instead of Turbopack — see next.config.ts for why); an extended debugging session mistook
+   several working configurations for broken ones by checking only one of the multiple CSS chunk
+   files Next's webpack build emits (next/font's @font-face rules land in a separate chunk from
+   Tailwind's own utility output) — always verify by concatenating every file under
+   out/_next/static/css/, not just the first one found. The pre-generated approach was kept
+   anyway once working, since it's simpler and has one less moving part (no symlink) than
+   re-adding live cross-directory scanning would need.
+
+   A one-time Turbopack build (`next build`, no --webpack, with a temporary `@source` directive
+   covering the two reused paths) was used to generate this file's content; regenerate it the same
+   way if the reused components' classes change enough to need new utilities. The `@font-face`
+   rules from that generation were stripped — next/font already injects the correct ones for this
+   project's own font loading independently of Tailwind. */
 @import "tailwindcss";
-@plugin "tailwindcss-animate";
-
-/* Task 182741 (P19.26)/194632 (P19.27): Tailwind v4's automatic content detection only scans
-   files inside this project's own root (website/) — it never walks the reused components on its
-   own. Without this, classes used only there (e.g. `hidden`, `md:flex`, `sm:grid-cols-2`) are
-   silently absent from the generated CSS. @source explicitly extends the scan to the actual
-   files this site imports, without copying them — via the src/shared symlink (see
-   next.config.ts) rather than a literal ../.. path, since Turbopack's root is now this project's
-   own directory and refuses to resolve paths that leave it. */
-@source "../shared/components/landing/**/*.{ts,tsx}";
-@source "../shared/components/ui/**/*.{ts,tsx}";
-
-:root {
-  --background: #0a0a0c;
-  --surface: #121214;
-  --surface-2: #18181b;
-  --surface-3: #201f24;
-  --border: #27272a;
-  --border-strong: #34343a;
-  --foreground: #f4f4f5;
-  --muted: #a1a1aa;
-  --muted-2: #71717a;
-
-  --accent: #7c3aed;
-  --accent-2: #6d28d9;
-  --accent-soft: rgba(124, 58, 237, 0.15);
-  --accent-cyan: #22d3ee;
-  --accent-pink: #f472b6;
-
-  --success: #22c55e;
-  --warning: #f59e0b;
-  --danger: #ef4444;
-
-  --radius: 12px;
-}
-
-@theme inline {
-  --color-background: var(--background);
-  --color-surface: var(--surface);
-  --color-surface-2: var(--surface-2);
-  --color-surface-3: var(--surface-3);
-  --color-border: var(--border);
-  --color-border-strong: var(--border-strong);
-  --color-foreground: var(--foreground);
-  --color-muted: var(--muted);
-  --color-muted-2: var(--muted-2);
-  --color-accent: var(--accent);
-  --color-accent-2: var(--accent-2);
-  --color-accent-cyan: var(--accent-cyan);
-  --color-accent-pink: var(--accent-pink);
-  --color-success: var(--success);
-  --color-warning: var(--warning);
-  --color-danger: var(--danger);
-  --font-sans: var(--font-inter);
-  --radius-lg: var(--radius);
-}
-
-* {
-  border-color: var(--border);
-}
-
-html {
-  color-scheme: dark;
-}
-
-body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
-  -webkit-font-smoothing: antialiased;
-}
-
-::selection {
-  background: var(--accent);
-  color: white;
-}
-
-::-webkit-scrollbar {
-  width: 10px;
-  height: 10px;
-}
-::-webkit-scrollbar-track {
-  background: transparent;
-}
-::-webkit-scrollbar-thumb {
-  background: var(--border-strong);
-  border-radius: 8px;
-}
-::-webkit-scrollbar-thumb:hover {
-  background: var(--muted-2);
-}
-
-.bg-grid {
-  background-image:
-    linear-gradient(to right, rgba(255, 255, 255, 0.035) 1px, transparent 1px),
-    linear-gradient(to bottom, rgba(255, 255, 255, 0.035) 1px, transparent 1px);
-  background-size: 44px 44px;
-}
-
-.text-gradient {
-  background: linear-gradient(110deg, #ffffff 20%, #c4b5fd 55%, #67e8f9 80%);
-  -webkit-background-clip: text;
-  background-clip: text;
-  color: transparent;
-}
-
-.glow-accent {
-  box-shadow: 0 0 0 1px var(--border), 0 8px 30px -10px rgba(124, 58, 237, 0.45);
-}
-
-@media (prefers-reduced-motion: reduce) {
-  *, *::before, *::after {
-    animation-duration: 0.001ms !important;
-    animation-iteration-count: 1 !important;
-    transition-duration: 0.001ms !important;
-  }
-}
-
-@keyframes marquee {
-  from { transform: translateX(0); }
-  to { transform: translateX(-50%); }
-}
-.animate-marquee {
-  animation: marquee 28s linear infinite;
-}
+@import "./tailwind-generated.css";
