@@ -133,4 +133,4 @@ Only two things: the one-time transcription-model download on first use, and the
 ## 15. Short CTA
 
 **Download SUBLY for Windows — transcribe, style, and export your first subtitle in minutes.**
-`[DOWNLOAD LINK]`
+[Download SUBLY 0.1.20 for Windows](https://github.com/videoedits4clients-crypto/subly/releases/download/v0.1.20/SUBLY.Setup.0.1.20.exe)

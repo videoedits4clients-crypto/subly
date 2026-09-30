@@ -18,7 +18,7 @@ SUBLY is a Windows desktop app for creators, editors, and anyone who needs clean
 
 SUBLY is available now for Windows. Version 0.1.20.
 
-👉 **[DOWNLOAD LINK]**
+👉 **[Download SUBLY 0.1.20](https://github.com/videoedits4clients-crypto/subly/releases/tag/v0.1.20)**
 
 ---
 
@@ -26,13 +26,13 @@ SUBLY is available now for Windows. Version 0.1.20.
 
 Introducing SUBLY 🎬 — a Windows app that transcribes and styles your video subtitles locally, no cloud upload required. Word-level editing, a real timeline, and MP4/SRT/VTT/TXT export. Free during preview.
 
-Windows · v0.1.20 · [DOWNLOAD LINK]
+Windows · v0.1.20 · https://github.com/videoedits4clients-crypto/subly/releases/tag/v0.1.20
 
 ---
 
 ## One-line version (Discord announcement / short post)
 
-**SUBLY is live** — a Windows app for local video transcription + professional subtitle editing/export. English & Hindi transcription, word-level styling, real timeline editing, MP4/SRT/VTT/TXT export. Free during preview. v0.1.20 → [DOWNLOAD LINK]
+**SUBLY is live** — a Windows app for local video transcription + professional subtitle editing/export. English & Hindi transcription, word-level styling, real timeline editing, MP4/SRT/VTT/TXT export. Free during preview. v0.1.20 → https://github.com/videoedits4clients-crypto/subly/releases/tag/v0.1.20
 
 ---
 
@@ -41,4 +41,4 @@ Windows · v0.1.20 · [DOWNLOAD LINK]
 - "Locally processed"/"runs on your PC" refers to transcription and all editing/export — not the optional AI text tools or Translate feature, which are cloud-dependent (see `SUBLY-PUBLIC-LAUNCH-COPY.md` §10 if a longer post needs to mention them).
 - Do not claim "works fully offline out of the box" — the very first transcription needs one internet connection to download the local model.
 - Do not claim support for languages beyond English/Hindi/Auto Detect for new-project transcription.
-- Replace `[DOWNLOAD LINK]` with the actual distribution URL once one exists — do not publish with a fabricated link.
+- The download link above is the verified GitHub Release for v0.1.20 (`videoedits4clients-crypto/subly`), independently confirmed by SHA-256 after a round-trip upload/download — see `research/p19_20_github_release_report.md`.

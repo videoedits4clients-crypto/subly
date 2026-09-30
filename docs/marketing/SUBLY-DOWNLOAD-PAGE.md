@@ -10,7 +10,7 @@ Ready-to-paste page content. Source facts verified against `research/p19_18_rele
 
 ### Professional subtitles, locally processed on Windows.
 
-**[DOWNLOAD SUBLY FOR WINDOWS]**
+**[DOWNLOAD SUBLY FOR WINDOWS](https://github.com/videoedits4clients-crypto/subly/releases/download/v0.1.20/SUBLY.Setup.0.1.20.exe)**
 
 Version 0.1.20 · Windows · ~566 MB
 
@@ -117,7 +117,7 @@ Filename: `SUBLY Setup 0.1.20.exe`
 Size: approximately 566 MB
 SHA-256: `6ada3a2c2e65b41cc54fb8a55640aa68bb0bb4dabcfb5842352ec0c5f02d1b08`
 
-**[DOWNLOAD LINK]**
+**[Download SUBLY Setup 0.1.20.exe](https://github.com/videoedits4clients-crypto/subly/releases/download/v0.1.20/SUBLY.Setup.0.1.20.exe)**
 
 **Verifying your download (optional, recommended):**
 Open PowerShell in the folder where you saved the installer and run:
