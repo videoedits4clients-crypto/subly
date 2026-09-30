@@ -12,7 +12,31 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+    // Electron packaging output — contains copied third-party node_modules,
+    // not source this project owns.
+    "release*/**",
+    "python/build/**",
+    "python/dist/**",
   ]),
+  {
+    // The Electron main/preload process and desktop build scripts are plain
+    // Node CommonJS (no bundler, run directly via `node`/electron.exe) — the
+    // app-wide `no-require-imports` rule is meant for the Next-bundled src/
+    // code, not these.
+    files: ["electron/**/*.js", "scripts/**/*.js", "python/*.js"],
+    rules: {
+      "@typescript-eslint/no-require-imports": "off",
+    },
+  },
+  {
+    // Test fixture spawned directly via `node fixtures/fake-worker.js` (see
+    // src/lib/transcription/__tests__/cancellation.test.ts) — plain Node CommonJS, not
+    // bundled by Next, same rationale as the Electron/scripts override above.
+    files: ["src/**/__tests__/fixtures/**/*.js"],
+    rules: {
+      "@typescript-eslint/no-require-imports": "off",
+    },
+  },
 ]);
 
 export default eslintConfig;

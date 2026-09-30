@@ -1,0 +1,29 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024">
+  <!--
+    Windows app-icon source for electron-builder (build.win.icon in package.json).
+    Deliberately NOT a new visual identity: this is a faithful, deterministic reproduction
+    of SUBLY's own existing in-app mark — the gradient rounded-square + Lucide "Sparkles"
+    glyph already used identically in src/components/landing/navbar.tsx and
+    src/components/dashboard/sidebar.tsx (`bg-gradient-to-br from-accent to-accent-cyan` box
+    with a white lucide-react Sparkles icon at roughly 4/7 of the box). Colors are the exact
+    accent (#7c3aed) / accent-cyan (#22d3ee) custom properties from src/app/globals.css;
+    the glyph path data is copied verbatim from node_modules/lucide-react's sparkles icon
+    (v1.41.0, the version this repo depends on), scaled/centered to match that same ~4/7
+    on-screen proportion. electron-builder rasterizes this SVG and generates the full
+    multi-resolution .ico itself (see app-builder-lib's iconConverter.js); nothing here is
+    hand-rasterized.
+  -->
+  <defs>
+    <linearGradient id="g" x1="0" y1="0" x2="1024" y2="1024" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#7c3aed"/>
+      <stop offset="1" stop-color="#22d3ee"/>
+    </linearGradient>
+  </defs>
+  <rect width="1024" height="1024" rx="293" ry="293" fill="url(#g)"/>
+  <g transform="translate(220,220) scale(24.375)" fill="none" stroke="#ffffff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M11.017 2.814a1 1 0 0 1 1.966 0l1.051 5.558a2 2 0 0 0 1.594 1.594l5.558 1.051a1 1 0 0 1 0 1.966l-5.558 1.051a2 2 0 0 0-1.594 1.594l-1.051 5.558a1 1 0 0 1-1.966 0l-1.051-5.558a2 2 0 0 0-1.594-1.594l-5.558-1.051a1 1 0 0 1 0-1.966l5.558-1.051a2 2 0 0 0 1.594-1.594z"/>
+    <path d="M20 2v4"/>
+    <path d="M22 4h-4"/>
+    <circle cx="4" cy="20" r="2"/>
+  </g>
+</svg>

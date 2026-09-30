@@ -1,0 +1,1009 @@
+{
+  "source": "Real 61.3s Gujarati benchmark audio, faster-whisper medium model, language=gu, word_timestamps=true, vad_filter=true (see Gujarati small-vs-medium benchmark investigation).",
+  "audio_duration_sec": 61.312,
+  "full_text": "अप्रेशण सामबडिय। ने डर लागिय। तो चलो आजे एक डर ने मिटावियें। अप्रेशण सामबडिय ने लोकोने एम तातो हो एजे कि मारा पेट पर मोटो चिरो आउसे, दिवसो सुदि अपडे अपडे उस्पिटाल मा फरबू पर से ने महिनाओ सुदि एनो दुक्ध दर्द रह से। तो यह अपडे आपने लाप्रोस्कोपिक सर्जरी के लिए हैं। लाप्रोस्कोपिक सर्जरी मा अपडे पेट ने अंदर नाना चीरा पारता हो एजे जे कि एक संटिमेटर ती उपन उचू साइस न हो एजे। इमाए ती दूर्बिन वढे और लाप्रोस्कोपिक इस्टुवेंट द्योरा अपडे सर्जरी करता हो एजे। लाप्रोस्कोपिक न फाइडा सू नाना चीरा होए उचू दुखाओ होए। तमें 24 ती 48 कल्लाक मां घरे जे जेए सकोझ। और एक आद हफ्ता मां तमें खुमप्लीट्ली तमां रूटींग वर्ग जोइन करी सकता होई जे। लाप्रोस्कोपिक द्वारा अपर कई-कई सर्जरी करी सकीए जे। गौल ब्रेड़, हर्निया, अपन्डिक्स और बीजी घणी बदी सर्जरी करी सकता होई जे। तो तमारे, कि तमारा फैम्डली मां कोईने भी सर्जरी नि कही भी प्रश्न होए, तो तमें अवस्ये मांने कौन्टाक करी सकोचो।",
+  "words": [
+    {
+      "text": "अप्रेशण",
+      "start": 0,
+      "end": 0.48,
+      "confidence": 0.565
+    },
+    {
+      "text": "सामबडिय।",
+      "start": 0.48,
+      "end": 1.06,
+      "confidence": 0.668
+    },
+    {
+      "text": "ने",
+      "start": 1.06,
+      "end": 1.22,
+      "confidence": 0.528
+    },
+    {
+      "text": "डर",
+      "start": 1.22,
+      "end": 1.4,
+      "confidence": 0.762
+    },
+    {
+      "text": "लागिय।",
+      "start": 1.4,
+      "end": 2.14,
+      "confidence": 0.879
+    },
+    {
+      "text": "तो",
+      "start": 2.14,
+      "end": 2.34,
+      "confidence": 0.899
+    },
+    {
+      "text": "चलो",
+      "start": 2.34,
+      "end": 2.64,
+      "confidence": 0.894
+    },
+    {
+      "text": "आजे",
+      "start": 2.64,
+      "end": 2.9,
+      "confidence": 0.696
+    },
+    {
+      "text": "एक",
+      "start": 2.9,
+      "end": 3.06,
+      "confidence": 0.868
+    },
+    {
+      "text": "डर",
+      "start": 3.06,
+      "end": 3.24,
+      "confidence": 0.858
+    },
+    {
+      "text": "ने",
+      "start": 3.24,
+      "end": 3.34,
+      "confidence": 0.923
+    },
+    {
+      "text": "मिटावियें।",
+      "start": 3.34,
+      "end": 3.94,
+      "confidence": 0.739
+    },
+    {
+      "text": "अप्रेशण",
+      "start": 3.94,
+      "end": 4.38,
+      "confidence": 0.932
+    },
+    {
+      "text": "सामबडिय",
+      "start": 4.38,
+      "end": 4.84,
+      "confidence": 0.946
+    },
+    {
+      "text": "ने",
+      "start": 4.84,
+      "end": 4.84,
+      "confidence": 0.755
+    },
+    {
+      "text": "लोकोने",
+      "start": 4.84,
+      "end": 5.2,
+      "confidence": 0.891
+    },
+    {
+      "text": "एम",
+      "start": 5.2,
+      "end": 5.38,
+      "confidence": 0.751
+    },
+    {
+      "text": "तातो",
+      "start": 5.38,
+      "end": 5.7,
+      "confidence": 0.638
+    },
+    {
+      "text": "हो",
+      "start": 5.7,
+      "end": 5.84,
+      "confidence": 0.771
+    },
+    {
+      "text": "एजे",
+      "start": 5.84,
+      "end": 6.18,
+      "confidence": 0.39
+    },
+    {
+      "text": "कि",
+      "start": 6.18,
+      "end": 6.38,
+      "confidence": 0.632
+    },
+    {
+      "text": "मारा",
+      "start": 6.38,
+      "end": 6.64,
+      "confidence": 0.955
+    },
+    {
+      "text": "पेट",
+      "start": 6.64,
+      "end": 6.86,
+      "confidence": 0.945
+    },
+    {
+      "text": "पर",
+      "start": 6.86,
+      "end": 7.02,
+      "confidence": 0.921
+    },
+    {
+      "text": "मोटो",
+      "start": 7.02,
+      "end": 7.34,
+      "confidence": 0.816
+    },
+    {
+      "text": "चिरो",
+      "start": 7.34,
+      "end": 7.6,
+      "confidence": 0.761
+    },
+    {
+      "text": "आउसे,",
+      "start": 7.6,
+      "end": 8.18,
+      "confidence": 0.806
+    },
+    {
+      "text": "दिवसो",
+      "start": 8.18,
+      "end": 8.72,
+      "confidence": 0.672
+    },
+    {
+      "text": "सुदि",
+      "start": 8.72,
+      "end": 8.98,
+      "confidence": 0.741
+    },
+    {
+      "text": "अपडे",
+      "start": 8.98,
+      "end": 9.34,
+      "confidence": 0.683
+    },
+    {
+      "text": "अपडे",
+      "start": 9.34,
+      "end": 9.54,
+      "confidence": 0.654
+    },
+    {
+      "text": "उस्पिटाल",
+      "start": 9.54,
+      "end": 9.88,
+      "confidence": 0.678
+    },
+    {
+      "text": "मा",
+      "start": 9.88,
+      "end": 10.02,
+      "confidence": 0.908
+    },
+    {
+      "text": "फरबू",
+      "start": 10.02,
+      "end": 10.3,
+      "confidence": 0.654
+    },
+    {
+      "text": "पर",
+      "start": 10.3,
+      "end": 10.38,
+      "confidence": 0.909
+    },
+    {
+      "text": "से",
+      "start": 10.38,
+      "end": 10.76,
+      "confidence": 0.538
+    },
+    {
+      "text": "ने",
+      "start": 10.76,
+      "end": 10.98,
+      "confidence": 0.637
+    },
+    {
+      "text": "महिनाओ",
+      "start": 10.98,
+      "end": 11.34,
+      "confidence": 0.734
+    },
+    {
+      "text": "सुदि",
+      "start": 11.34,
+      "end": 11.54,
+      "confidence": 0.93
+    },
+    {
+      "text": "एनो",
+      "start": 11.54,
+      "end": 12.02,
+      "confidence": 0.629
+    },
+    {
+      "text": "दुक्ध",
+      "start": 12.02,
+      "end": 12.38,
+      "confidence": 0.778
+    },
+    {
+      "text": "दर्द",
+      "start": 12.38,
+      "end": 12.56,
+      "confidence": 0.727
+    },
+    {
+      "text": "रह",
+      "start": 12.56,
+      "end": 12.7,
+      "confidence": 0.777
+    },
+    {
+      "text": "से।",
+      "start": 12.7,
+      "end": 13.02,
+      "confidence": 0.662
+    },
+    {
+      "text": "तो",
+      "start": 14.62,
+      "end": 14.62,
+      "confidence": 0.561
+    },
+    {
+      "text": "यह",
+      "start": 14.62,
+      "end": 14.94,
+      "confidence": 0.418
+    },
+    {
+      "text": "अपडे",
+      "start": 14.94,
+      "end": 14.94,
+      "confidence": 0.553
+    },
+    {
+      "text": "आपने",
+      "start": 14.94,
+      "end": 15.44,
+      "confidence": 0.621
+    },
+    {
+      "text": "लाप्रोस्कोपिक",
+      "start": 15.44,
+      "end": 16.16,
+      "confidence": 0.792
+    },
+    {
+      "text": "सर्जरी",
+      "start": 16.16,
+      "end": 16.54,
+      "confidence": 0.821
+    },
+    {
+      "text": "के",
+      "start": 16.54,
+      "end": 16.86,
+      "confidence": 0.186
+    },
+    {
+      "text": "लिए",
+      "start": 16.86,
+      "end": 16.86,
+      "confidence": 0.629
+    },
+    {
+      "text": "हैं।",
+      "start": 16.86,
+      "end": 17.18,
+      "confidence": 0.544
+    },
+    {
+      "text": "लाप्रोस्कोपिक",
+      "start": 17.18,
+      "end": 17.92,
+      "confidence": 0.692
+    },
+    {
+      "text": "सर्जरी",
+      "start": 17.92,
+      "end": 18.38,
+      "confidence": 0.783
+    },
+    {
+      "text": "मा",
+      "start": 18.38,
+      "end": 18.74,
+      "confidence": 0.471
+    },
+    {
+      "text": "अपडे",
+      "start": 18.74,
+      "end": 19.04,
+      "confidence": 0.513
+    },
+    {
+      "text": "पेट",
+      "start": 19.04,
+      "end": 19.38,
+      "confidence": 0.911
+    },
+    {
+      "text": "ने",
+      "start": 19.38,
+      "end": 19.52,
+      "confidence": 0.49
+    },
+    {
+      "text": "अंदर",
+      "start": 19.52,
+      "end": 19.8,
+      "confidence": 0.84
+    },
+    {
+      "text": "नाना",
+      "start": 19.8,
+      "end": 20.28,
+      "confidence": 0.907
+    },
+    {
+      "text": "चीरा",
+      "start": 20.28,
+      "end": 20.58,
+      "confidence": 0.881
+    },
+    {
+      "text": "पारता",
+      "start": 20.58,
+      "end": 20.9,
+      "confidence": 0.917
+    },
+    {
+      "text": "हो",
+      "start": 20.9,
+      "end": 21.02,
+      "confidence": 0.796
+    },
+    {
+      "text": "एजे",
+      "start": 21.02,
+      "end": 21.24,
+      "confidence": 0.357
+    },
+    {
+      "text": "जे",
+      "start": 21.24,
+      "end": 21.72,
+      "confidence": 0.482
+    },
+    {
+      "text": "कि",
+      "start": 21.72,
+      "end": 21.9,
+      "confidence": 0.568
+    },
+    {
+      "text": "एक",
+      "start": 21.9,
+      "end": 22.2,
+      "confidence": 0.876
+    },
+    {
+      "text": "संटिमेटर",
+      "start": 22.2,
+      "end": 22.84,
+      "confidence": 0.795
+    },
+    {
+      "text": "ती",
+      "start": 22.84,
+      "end": 22.92,
+      "confidence": 0.779
+    },
+    {
+      "text": "उपन",
+      "start": 22.92,
+      "end": 23.36,
+      "confidence": 0.818
+    },
+    {
+      "text": "उचू",
+      "start": 23.36,
+      "end": 23.7,
+      "confidence": 0.756
+    },
+    {
+      "text": "साइस",
+      "start": 23.7,
+      "end": 24,
+      "confidence": 0.77
+    },
+    {
+      "text": "न",
+      "start": 24,
+      "end": 24.22,
+      "confidence": 0.642
+    },
+    {
+      "text": "हो",
+      "start": 24.22,
+      "end": 24.26,
+      "confidence": 0.815
+    },
+    {
+      "text": "एजे।",
+      "start": 24.26,
+      "end": 24.76,
+      "confidence": 0.702
+    },
+    {
+      "text": "इमाए",
+      "start": 24.76,
+      "end": 24.9,
+      "confidence": 0.581
+    },
+    {
+      "text": "ती",
+      "start": 24.9,
+      "end": 24.98,
+      "confidence": 0.717
+    },
+    {
+      "text": "दूर्बिन",
+      "start": 24.98,
+      "end": 25.42,
+      "confidence": 0.807
+    },
+    {
+      "text": "वढे",
+      "start": 25.42,
+      "end": 25.7,
+      "confidence": 0.742
+    },
+    {
+      "text": "और",
+      "start": 25.7,
+      "end": 25.9,
+      "confidence": 0.66
+    },
+    {
+      "text": "लाप्रोस्कोपिक",
+      "start": 25.9,
+      "end": 26.54,
+      "confidence": 0.962
+    },
+    {
+      "text": "इस्टुवेंट",
+      "start": 26.54,
+      "end": 27.02,
+      "confidence": 0.743
+    },
+    {
+      "text": "द्योरा",
+      "start": 27.02,
+      "end": 27.54,
+      "confidence": 0.697
+    },
+    {
+      "text": "अपडे",
+      "start": 27.54,
+      "end": 27.72,
+      "confidence": 0.882
+    },
+    {
+      "text": "सर्जरी",
+      "start": 27.72,
+      "end": 28.16,
+      "confidence": 0.96
+    },
+    {
+      "text": "करता",
+      "start": 28.16,
+      "end": 28.46,
+      "confidence": 0.916
+    },
+    {
+      "text": "हो",
+      "start": 28.46,
+      "end": 28.54,
+      "confidence": 0.95
+    },
+    {
+      "text": "एजे।",
+      "start": 28.54,
+      "end": 29.14,
+      "confidence": 0.781
+    },
+    {
+      "text": "लाप्रोस्कोपिक",
+      "start": 29.14,
+      "end": 29.88,
+      "confidence": 0.707
+    },
+    {
+      "text": "न",
+      "start": 29.88,
+      "end": 29.94,
+      "confidence": 0.429
+    },
+    {
+      "text": "फाइडा",
+      "start": 29.94,
+      "end": 30.24,
+      "confidence": 0.645
+    },
+    {
+      "text": "सू",
+      "start": 30.24,
+      "end": 30.56,
+      "confidence": 0.677
+    },
+    {
+      "text": "नाना",
+      "start": 30.56,
+      "end": 31.42,
+      "confidence": 0.674
+    },
+    {
+      "text": "चीरा",
+      "start": 31.42,
+      "end": 31.68,
+      "confidence": 0.883
+    },
+    {
+      "text": "होए",
+      "start": 31.68,
+      "end": 31.86,
+      "confidence": 0.639
+    },
+    {
+      "text": "उचू",
+      "start": 31.86,
+      "end": 32.3,
+      "confidence": 0.514
+    },
+    {
+      "text": "दुखाओ",
+      "start": 32.3,
+      "end": 32.66,
+      "confidence": 0.802
+    },
+    {
+      "text": "होए।",
+      "start": 32.66,
+      "end": 33.1,
+      "confidence": 0.779
+    },
+    {
+      "text": "तमें",
+      "start": 33.1,
+      "end": 33.2,
+      "confidence": 0.732
+    },
+    {
+      "text": "24",
+      "start": 33.2,
+      "end": 33.56,
+      "confidence": 0.769
+    },
+    {
+      "text": "ती",
+      "start": 33.56,
+      "end": 33.68,
+      "confidence": 0.532
+    },
+    {
+      "text": "48",
+      "start": 33.68,
+      "end": 34.08,
+      "confidence": 0.967
+    },
+    {
+      "text": "कल्लाक",
+      "start": 34.08,
+      "end": 34.5,
+      "confidence": 0.773
+    },
+    {
+      "text": "मां",
+      "start": 34.5,
+      "end": 34.84,
+      "confidence": 0.791
+    },
+    {
+      "text": "घरे",
+      "start": 34.84,
+      "end": 35.36,
+      "confidence": 0.746
+    },
+    {
+      "text": "जे",
+      "start": 35.36,
+      "end": 35.38,
+      "confidence": 0.745
+    },
+    {
+      "text": "जेए",
+      "start": 35.38,
+      "end": 35.38,
+      "confidence": 0.415
+    },
+    {
+      "text": "सकोझ।",
+      "start": 35.38,
+      "end": 35.88,
+      "confidence": 0.603
+    },
+    {
+      "text": "और",
+      "start": 35.88,
+      "end": 36.28,
+      "confidence": 0.8
+    },
+    {
+      "text": "एक",
+      "start": 36.28,
+      "end": 36.5,
+      "confidence": 0.839
+    },
+    {
+      "text": "आद",
+      "start": 36.5,
+      "end": 36.6,
+      "confidence": 0.702
+    },
+    {
+      "text": "हफ्ता",
+      "start": 36.6,
+      "end": 36.98,
+      "confidence": 0.701
+    },
+    {
+      "text": "मां",
+      "start": 36.98,
+      "end": 37.1,
+      "confidence": 0.884
+    },
+    {
+      "text": "तमें",
+      "start": 37.1,
+      "end": 37.36,
+      "confidence": 0.861
+    },
+    {
+      "text": "खुमप्लीट्ली",
+      "start": 37.36,
+      "end": 38.04,
+      "confidence": 0.601
+    },
+    {
+      "text": "तमां",
+      "start": 38.04,
+      "end": 38.3,
+      "confidence": 0.775
+    },
+    {
+      "text": "रूटींग",
+      "start": 38.3,
+      "end": 38.8,
+      "confidence": 0.805
+    },
+    {
+      "text": "वर्ग",
+      "start": 38.8,
+      "end": 39.02,
+      "confidence": 0.873
+    },
+    {
+      "text": "जोइन",
+      "start": 39.02,
+      "end": 39.3,
+      "confidence": 0.627
+    },
+    {
+      "text": "करी",
+      "start": 39.3,
+      "end": 39.58,
+      "confidence": 0.84
+    },
+    {
+      "text": "सकता",
+      "start": 39.58,
+      "end": 39.88,
+      "confidence": 0.898
+    },
+    {
+      "text": "होई",
+      "start": 39.88,
+      "end": 39.94,
+      "confidence": 0.69
+    },
+    {
+      "text": "जे।",
+      "start": 39.94,
+      "end": 40.08,
+      "confidence": 0.633
+    },
+    {
+      "text": "लाप्रोस्कोपिक",
+      "start": 40.08,
+      "end": 40.84,
+      "confidence": 0.692
+    },
+    {
+      "text": "द्वारा",
+      "start": 40.84,
+      "end": 41.34,
+      "confidence": 0.805
+    },
+    {
+      "text": "अपर",
+      "start": 41.34,
+      "end": 41.44,
+      "confidence": 0.609
+    },
+    {
+      "text": "कई",
+      "start": 41.44,
+      "end": 41.68,
+      "confidence": 0.468
+    },
+    {
+      "text": "-कई",
+      "start": 41.68,
+      "end": 41.78,
+      "confidence": 0.698
+    },
+    {
+      "text": "सर्जरी",
+      "start": 41.78,
+      "end": 42.2,
+      "confidence": 0.826
+    },
+    {
+      "text": "करी",
+      "start": 42.2,
+      "end": 42.48,
+      "confidence": 0.45
+    },
+    {
+      "text": "सकीए",
+      "start": 42.48,
+      "end": 42.78,
+      "confidence": 0.366
+    },
+    {
+      "text": "जे।",
+      "start": 42.78,
+      "end": 43.04,
+      "confidence": 0.509
+    },
+    {
+      "text": "गौल",
+      "start": 43.04,
+      "end": 43.4,
+      "confidence": 0.733
+    },
+    {
+      "text": "ब्रेड़,",
+      "start": 43.4,
+      "end": 44.22,
+      "confidence": 0.653
+    },
+    {
+      "text": "हर्निया,",
+      "start": 44.3,
+      "end": 45.1,
+      "confidence": 0.769
+    },
+    {
+      "text": "अपन्डिक्स",
+      "start": 45.5,
+      "end": 46.32,
+      "confidence": 0.816
+    },
+    {
+      "text": "और",
+      "start": 46.32,
+      "end": 46.52,
+      "confidence": 0.871
+    },
+    {
+      "text": "बीजी",
+      "start": 46.52,
+      "end": 46.84,
+      "confidence": 0.806
+    },
+    {
+      "text": "घणी",
+      "start": 46.84,
+      "end": 47.12,
+      "confidence": 0.706
+    },
+    {
+      "text": "बदी",
+      "start": 47.12,
+      "end": 47.34,
+      "confidence": 0.849
+    },
+    {
+      "text": "सर्जरी",
+      "start": 47.34,
+      "end": 47.76,
+      "confidence": 0.944
+    },
+    {
+      "text": "करी",
+      "start": 47.76,
+      "end": 49.36,
+      "confidence": 0.448
+    },
+    {
+      "text": "सकता",
+      "start": 49.36,
+      "end": 49.64,
+      "confidence": 0.763
+    },
+    {
+      "text": "होई",
+      "start": 49.64,
+      "end": 49.78,
+      "confidence": 0.495
+    },
+    {
+      "text": "जे।",
+      "start": 49.78,
+      "end": 50.2,
+      "confidence": 0.877
+    },
+    {
+      "text": "तो",
+      "start": 50.2,
+      "end": 50.36,
+      "confidence": 0.715
+    },
+    {
+      "text": "तमारे,",
+      "start": 50.36,
+      "end": 50.86,
+      "confidence": 0.793
+    },
+    {
+      "text": "कि",
+      "start": 50.94,
+      "end": 51.02,
+      "confidence": 0.826
+    },
+    {
+      "text": "तमारा",
+      "start": 51.02,
+      "end": 51.34,
+      "confidence": 0.972
+    },
+    {
+      "text": "फैम्डली",
+      "start": 51.34,
+      "end": 51.76,
+      "confidence": 0.574
+    },
+    {
+      "text": "मां",
+      "start": 51.76,
+      "end": 52.16,
+      "confidence": 0.672
+    },
+    {
+      "text": "कोईने",
+      "start": 52.16,
+      "end": 52.52,
+      "confidence": 0.889
+    },
+    {
+      "text": "भी",
+      "start": 52.52,
+      "end": 52.82,
+      "confidence": 0.861
+    },
+    {
+      "text": "सर्जरी",
+      "start": 52.82,
+      "end": 53.4,
+      "confidence": 0.848
+    },
+    {
+      "text": "नि",
+      "start": 53.4,
+      "end": 53.8,
+      "confidence": 0.592
+    },
+    {
+      "text": "कही",
+      "start": 53.8,
+      "end": 54.06,
+      "confidence": 0.735
+    },
+    {
+      "text": "भी",
+      "start": 54.06,
+      "end": 54.22,
+      "confidence": 0.934
+    },
+    {
+      "text": "प्रश्न",
+      "start": 54.22,
+      "end": 54.56,
+      "confidence": 0.871
+    },
+    {
+      "text": "होए,",
+      "start": 54.56,
+      "end": 55.22,
+      "confidence": 0.715
+    },
+    {
+      "text": "तो",
+      "start": 55.38,
+      "end": 55.44,
+      "confidence": 0.985
+    },
+    {
+      "text": "तमें",
+      "start": 55.44,
+      "end": 55.84,
+      "confidence": 0.798
+    },
+    {
+      "text": "अवस्ये",
+      "start": 55.84,
+      "end": 56.2,
+      "confidence": 0.715
+    },
+    {
+      "text": "मांने",
+      "start": 56.2,
+      "end": 56.42,
+      "confidence": 0.673
+    },
+    {
+      "text": "कौन्टाक",
+      "start": 56.42,
+      "end": 56.7,
+      "confidence": 0.631
+    },
+    {
+      "text": "करी",
+      "start": 56.7,
+      "end": 56.96,
+      "confidence": 0.716
+    },
+    {
+      "text": "सकोचो।",
+      "start": 56.96,
+      "end": 57.74,
+      "confidence": 0.632
+    }
+  ]
+}

@@ -1,0 +1,205 @@
+// Prisma schema for SUBLY
+// Dev default: SQLite (file:./prisma/dev.db) — zero setup required.
+// Production: point DATABASE_URL at Postgres and change `provider` below to
+// "postgresql". Structured fields (globalStyle, words, style, animation, ...)
+// are typed String here and hold JSON-encoded payloads (parsed/serialized in
+// src/lib/db-json.ts) because SQLite's Prisma connector has no native Json
+// type — on Postgres you may switch these to `Json` for native querying.
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+model User {
+  id            String    @id @default(cuid())
+  name          String?
+  email         String    @unique
+  passwordHash  String?
+  image         String?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  projects      Project[]
+  brandKits     BrandKit[]
+  presets       SubtitlePreset[]
+}
+
+model Project {
+  id            String    @id @default(cuid())
+  ownerId       String
+  owner         User      @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  name          String
+  status        String    @default("EMPTY") // EMPTY | LOADING | TRANSCRIBING | READY | EXPORTING | EXPORTED | ERROR
+  language      String    @default("en")
+  captionOutputMode String @default("original") // original | hinglish | gujarati-script — see src/types/subtitle.ts CaptionOutputMode
+  aspectRatio   String    @default("9:16") // 9:16 | 16:9 | 1:1 | 4:5
+  errorMessage  String?
+
+  // Real transcription progress (see python/whisper_worker.py's per-segment "progress"
+  // events, wired through pipeline.ts) — 0-100, only meaningful while status is LOADING or
+  // TRANSCRIBING. processingStartedAt is set when a transcription attempt begins and cleared
+  // on completion/error, so the UI can show elapsed time without ever inventing an ETA (see
+  // ProcessingScreen — no ETA is computed, only percent + elapsed).
+  progress      Float     @default(0)
+  processingStartedAt DateTime?
+
+  video         VideoAsset?
+  subtitles     Subtitle[]
+  subtitleTracks SubtitleTrack[]
+  exportJobs    ExportJob[]
+
+  globalStyle   String?     // default SubtitleStyle applied to new subtitles
+  animation     String?     // default AnimationConfig applied to new subtitles
+  timingRules   String?     // { minDuration, maxDuration, maxCharsPerLine, maxLines }
+  composition   String?     // { canvasWidth, canvasHeight, videoVisible, backgroundColor } — see src/types/subtitle.ts CompositionSettings
+  brandKitId    String?
+  brandKit      BrandKit? @relation(fields: [brandKitId], references: [id])
+
+  // Non-destructive video editing — see src/lib/timeline/edit-model.ts. The
+  // uploaded source video is never modified; these describe what to skip.
+  trimStart     Float     @default(0)      // source-time seconds
+  trimEnd       Float?                     // source-time seconds; null = full duration
+  cutRanges     String?                    // CutRange[] (filler/silence/manual), source-time
+
+  history       String?     // serialized undo/redo snapshots (bounded)
+  deletedAt     DateTime?   // soft-delete (trash) — set instead of removing the row; a background sweep or explicit "delete permanently" removes it for good
+
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  @@index([ownerId])
+}
+
+model VideoAsset {
+  id            String    @id @default(cuid())
+  projectId     String    @unique
+  project       Project   @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  url           String    // storage URL/path of original upload
+  audioUrl      String?   // extracted audio (wav) storage URL/path
+  originalName  String
+  mimeType      String
+  sizeBytes     Int
+  duration      Float?    // seconds
+  width         Int?
+  height        Int?
+  fps           Float?
+
+  createdAt     DateTime  @default(now())
+}
+
+model Subtitle {
+  id            String    @id @default(cuid())
+  projectId     String
+  project       Project   @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  index         Int       // ordering
+  start         Float
+  end           Float
+  text          String
+  words         String      // Word[]
+  style         String?     // per-subtitle SubtitleStyle override (merged over project.globalStyle)
+  animation     String?     // AnimationConfig override
+  hinglishText  String?     // derived Romanized rendering of `text` — see src/lib/subtitles/output-mode.ts
+  gujaratiScriptText String? // derived native Gujarati-script rendering of `text` — see src/lib/subtitles/gujarati-script.ts
+
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  @@index([projectId, index])
+}
+
+// A saved language version of the transcript. The `Subtitle` rows above are
+// always the single "active" working set the whole editor operates on
+// (timeline, canvas, export); SubtitleTrack is a save/restore mechanism so
+// translating into a new language never destroys the original (or any other
+// previously-translated) version — switching tracks copies its subtitles
+// back into the active Subtitle rows.
+model SubtitleTrack {
+  id            String    @id @default(cuid())
+  projectId     String
+  project       Project   @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  language      String
+  label         String
+  subtitles     String    // Subtitle[] (id, index, start, end, text, words, style, animation)
+
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  @@unique([projectId, language])
+  @@index([projectId])
+}
+
+model SubtitlePreset {
+  id            String    @id @default(cuid())
+  ownerId       String?
+  owner         User?     @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  name          String
+  isBuiltIn     Boolean   @default(false)
+  style         String
+  animation     String
+
+  createdAt     DateTime  @default(now())
+}
+
+model BrandKit {
+  id            String    @id @default(cuid())
+  ownerId       String
+  owner         User      @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  name          String    @default("My Brand")
+  primaryColor  String    @default("#7C3AED")
+  secondaryColor String   @default("#22D3EE")
+  accentColor   String    @default("#F472B6")
+  fontFamily    String    @default("Inter")
+  logoUrl       String?
+  captionStyle  String?
+
+  projects      Project[]
+
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+}
+
+model ExportJob {
+  id            String    @id @default(cuid())
+  projectId     String
+  project       Project   @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  status        String    @default("QUEUED") // QUEUED | RUNNING | DONE | ERROR
+  stage         String    @default("preparing") // preparing | rendering | finalizing | complete
+  progress      Float     @default(0)
+  resolution    String    @default("1080p")
+  format        String    @default("mp4")
+  fps           Int       @default(30)
+  quality       String    @default("high")
+  // Vestigial — no code path reads this column anymore (see canvasWidth/canvasHeight below,
+  // which superseded it as the source of truth for output aspect ratio in both render paths).
+  // Kept at its schema default on every insert; not removed since no migration is warranted
+  // for an unread column with no user-visible effect.
+  aspectRatio   String    @default("9:16")
+
+  // Composition/video-layer options snapshotted at export time — see
+  // src/types/subtitle.ts CompositionSettings, lib/export-pipeline.ts, and
+  // lib/ffmpeg/index.ts's computeExportDimensions/planExportRender. canvasWidth/canvasHeight
+  // are the ONE source of truth for output aspect ratio in BOTH the videoVisible-true (fit +
+  // pad the real video) and videoVisible-false (solid-color canvas) render paths — `resolution`
+  // above only scales this canvas up/down as export quality, never substituting a different
+  // ratio. aspectRatio above is NOT read by either path.
+  videoVisible  Boolean   @default(true)
+  backgroundColor String  @default("#000000")
+  canvasWidth   Int       @default(1080)
+  canvasHeight  Int       @default(1920)
+
+  outputUrl     String?
+  errorMessage  String?
+
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  @@index([projectId])
+}

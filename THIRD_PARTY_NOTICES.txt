@@ -1,0 +1,106 @@
+SUBLY — Third-Party Notices
+============================
+This file lists the significant third-party components bundled in or required
+by the SUBLY Windows desktop build, and the license terms that apply to each.
+It is not legal advice — it is an honest inventory of what is being
+distributed, produced by inspecting each component directly rather than
+assuming.
+
+--------------------------------------------------------------------------
+FFmpeg / FFprobe  —  GPL v3  (NOT LGPL — verified, see below)
+--------------------------------------------------------------------------
+Bundled via the npm packages `ffmpeg-static` (v5.3.0) and
+`@ffprobe-installer/ffprobe` (v2.1.2), which download a prebuilt Windows
+binary from the gyan.dev "essentials" FFmpeg build
+(https://www.gyan.dev/ffmpeg/builds/).
+
+Verified by running the bundled `ffmpeg.exe -version` directly: its own
+reported build configuration includes `--enable-gpl` together with GPL-only
+codecs (`--enable-libx264 --enable-libx265 --enable-libxvid` among others).
+A build compiled with `--enable-gpl` is licensed under the GPL (version 2 or
+later, effectively GPLv3 given `--enable-version3`), NOT the LGPL — the LGPL
+option only applies to a build compiled WITHOUT `--enable-gpl`, which this is
+not.
+
+What this means for SUBLY: FFmpeg/FFprobe are invoked as separate child
+processes (via `ffmpeg-static`/`fluent-ffmpeg`), never linked into SUBLY's own
+compiled code — the standard "mere aggregation via separate process, not a
+derivative work" interpretation that most software bundling FFmpeg.exe relies
+on. This notices file, and access to the exact matching FFmpeg source (gyan.dev
+publishes source alongside every build), fulfill the GPL's attribution/source-
+availability expectations for the GPL-licensed binary itself. This is NOT a
+substitute for a lawyer's review before commercial distribution — the
+separate-process argument is the common industry practice, not a guarantee.
+
+Full GPL v3 text: https://www.gnu.org/licenses/gpl-3.0.html
+Matching FFmpeg source: https://www.gyan.dev/ffmpeg/builds/ (see the
+"release-essentials" build notes for the exact source revision).
+
+--------------------------------------------------------------------------
+Electron — MIT License
+--------------------------------------------------------------------------
+electron (v44.2.0), electron-builder (v26.15.3, build-time only, not
+redistributed). https://github.com/electron/electron/blob/main/LICENSE
+
+--------------------------------------------------------------------------
+faster-whisper / CTranslate2 — MIT License
+--------------------------------------------------------------------------
+faster-whisper (v1.2.1): https://github.com/SYSTRAN/faster-whisper/blob/master/LICENSE
+CTranslate2 (v4.8.2): https://github.com/OpenNMT/CTranslate2/blob/master/LICENSE
+Both frozen into whisper-worker.exe via PyInstaller.
+
+--------------------------------------------------------------------------
+Whisper model weights — MIT License
+--------------------------------------------------------------------------
+The "small" Whisper model (converted for CTranslate2 by Systran, distributed
+via Hugging Face as Systran/faster-whisper-small) traces back to OpenAI's
+original Whisper release, published under the MIT License:
+https://github.com/openai/whisper/blob/main/LICENSE
+Downloaded on first run, cached under %APPDATA%/subs/models — not bundled
+inside the installer itself.
+
+--------------------------------------------------------------------------
+Python runtime — PSF License (permissive)
+--------------------------------------------------------------------------
+The whisper-worker.exe is a PyInstaller-frozen build embedding a Python 3.12
+runtime. Python itself is distributed under the Python Software Foundation
+License: https://docs.python.org/3/license.html — permissive, commercial use
+allowed without copyleft obligations.
+
+--------------------------------------------------------------------------
+PyInstaller — GPL v2 WITH a bootloader linking exception
+--------------------------------------------------------------------------
+PyInstaller's own source is GPLv2, but its license explicitly exempts the
+bootloader binary it produces (the actual whisper-worker.exe) from copyleft:
+"You may use PyInstaller to Bundle commercial items... without being required
+to disclose your app's source code." Building tool only — not itself
+redistributed as source. https://github.com/pyinstaller/pyinstaller/blob/develop/COPYING.txt
+
+--------------------------------------------------------------------------
+Fonts (bundled in assets/fonts-cache-seed/) — SIL Open Font License 1.1
+--------------------------------------------------------------------------
+Inter, Poppins, Montserrat, Roboto, Open Sans, Nunito, Bebas Neue, Anton,
+Oswald, Archivo, DM Sans, Plus Jakarta Sans, Noto Sans Devanagari, Noto Sans
+Gujarati — all Google Fonts, all OFL 1.1 (permissive, commercial use allowed,
+cannot be sold on its own as a font product). https://openfontlicense.org/
+
+--------------------------------------------------------------------------
+Key npm dependencies (permissive licenses — not individually re-verified
+line-by-line; run `npx license-checker --summary` for a full machine-
+generated audit before commercial distribution)
+--------------------------------------------------------------------------
+next, react, react-dom — MIT
+@prisma/client, prisma — Apache-2.0
+next-auth — ISC
+zustand, zod, openai (SDK, unused in desktop builds), tailwindcss,
+@radix-ui/* — MIT
+
+--------------------------------------------------------------------------
+NOT an exhaustive audit
+--------------------------------------------------------------------------
+This file was produced by directly inspecting the highest-risk / most
+consequential components (FFmpeg in particular, since GPL has real
+redistribution obligations). It has NOT been through `npx license-checker`
+against the full transitive npm dependency tree, and no legal counsel has
+reviewed it. Do this before any commercial/public distribution:
+  npx license-checker --summary --production
