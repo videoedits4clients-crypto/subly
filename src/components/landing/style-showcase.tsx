@@ -2,7 +2,10 @@
 
 import { motion } from "framer-motion";
 import { BUILT_IN_PRESETS } from "@/lib/presets";
-import { slugFont } from "@/lib/fonts";
+// Task 182741 (P19.26): import slugFont from its actual definition rather than through
+// lib/fonts.ts, which otherwise pulls in that module's ~25 next/font/google registrations
+// (irrelevant here — this component only needs the slug string, not the font loaders).
+import { slugFont } from "@/lib/subtitles/preview-style";
 
 const SHOWCASE = BUILT_IN_PRESETS.filter((p) =>
   ["tiktok", "mrbeast", "news", "elegant", "karaoke", "gaming"].includes(p.id),

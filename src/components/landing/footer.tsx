@@ -16,7 +16,8 @@ export function Footer() {
           <a href="#features" className="hover:text-foreground">Features</a>
           <a href="#pricing" className="hover:text-foreground">Pricing</a>
           <a href="#faq" className="hover:text-foreground">FAQ</a>
-          <a href="/download" className="hover:text-foreground">Download</a>
+          {/* Task 194632 (P19.27): next/link so this picks up basePath under GitHub Pages. */}
+          <Link href="/download" prefetch={false} className="hover:text-foreground">Download</Link>
         </div>
       </div>
     </footer>

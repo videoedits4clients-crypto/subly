@@ -17,6 +17,13 @@ const eslintConfig = defineConfig([
     "release*/**",
     "python/build/**",
     "python/dist/**",
+    // Task 182741 (P19.26): the independent static site under website/ has its own eslint-free
+    // build (see website/package.json — no lint script). Flat-config ignore patterns are NOT
+    // implicitly `**/`-prefixed the way .gitignore patterns are, so the bare ".next/**"/"out/**"
+    // above only cover the repo root's own build output, not website/'s — without these, `npx
+    // eslint .` from the repo root lints website/out/**'s generated, minified JS bundles.
+    "website/.next/**",
+    "website/out/**",
   ]),
   {
     // The Electron main/preload process and desktop build scripts are plain

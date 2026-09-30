@@ -5,14 +5,9 @@ import { DownloadContent } from "@/components/landing/download-content";
 import { SUBLY_VERSION, SUBLY_INSTALLER_SIZE_LABEL } from "@/lib/release-info";
 
 /**
- * Task 161847 (P19.21) — dedicated download page (Step 10). Created as a plain route under the
- * existing App Router structure (matching how /dashboard, /editor, /projects are already set
- * up) — no new architecture, just one more page. Reuses the landing page's own Navbar/Footer and
- * visual language rather than inventing a separate template.
- *
- * Task 182741 (P19.26) — body extracted into components/landing/download-content.tsx, shared
- * with the independent static site under website/, so both copies of this page render the exact
- * same version/SHA-256/URLs from lib/release-info.ts and can't drift apart.
+ * Task 182741 (P19.26): mirrors the main app's src/app/download/page.tsx exactly, rendering the
+ * same shared DownloadContent component so version/SHA-256/URLs can't drift between the two
+ * copies of this page.
  */
 export const metadata: Metadata = {
   title: "Download SUBLY for Windows",

@@ -1,0 +1,124 @@
+@import "tailwindcss";
+@plugin "tailwindcss-animate";
+
+/* Task 182741 (P19.26): Tailwind v4's automatic content detection only scans files inside this
+   project's own root (website/) — it never walks the reused components at ../src, since they
+   live outside that root. Without this, classes used only there (e.g. `hidden`, `md:flex`,
+   `sm:grid-cols-2`) are silently absent from the generated CSS. @source explicitly extends the
+   scan to the actual files this site imports, without copying them. */
+@source "../../../src/components/landing/**/*.{ts,tsx}";
+@source "../../../src/components/ui/**/*.{ts,tsx}";
+
+:root {
+  --background: #0a0a0c;
+  --surface: #121214;
+  --surface-2: #18181b;
+  --surface-3: #201f24;
+  --border: #27272a;
+  --border-strong: #34343a;
+  --foreground: #f4f4f5;
+  --muted: #a1a1aa;
+  --muted-2: #71717a;
+
+  --accent: #7c3aed;
+  --accent-2: #6d28d9;
+  --accent-soft: rgba(124, 58, 237, 0.15);
+  --accent-cyan: #22d3ee;
+  --accent-pink: #f472b6;
+
+  --success: #22c55e;
+  --warning: #f59e0b;
+  --danger: #ef4444;
+
+  --radius: 12px;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-surface: var(--surface);
+  --color-surface-2: var(--surface-2);
+  --color-surface-3: var(--surface-3);
+  --color-border: var(--border);
+  --color-border-strong: var(--border-strong);
+  --color-foreground: var(--foreground);
+  --color-muted: var(--muted);
+  --color-muted-2: var(--muted-2);
+  --color-accent: var(--accent);
+  --color-accent-2: var(--accent-2);
+  --color-accent-cyan: var(--accent-cyan);
+  --color-accent-pink: var(--accent-pink);
+  --color-success: var(--success);
+  --color-warning: var(--warning);
+  --color-danger: var(--danger);
+  --font-sans: var(--font-inter);
+  --radius-lg: var(--radius);
+}
+
+* {
+  border-color: var(--border);
+}
+
+html {
+  color-scheme: dark;
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+::selection {
+  background: var(--accent);
+  color: white;
+}
+
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: var(--border-strong);
+  border-radius: 8px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--muted-2);
+}
+
+.bg-grid {
+  background-image:
+    linear-gradient(to right, rgba(255, 255, 255, 0.035) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(255, 255, 255, 0.035) 1px, transparent 1px);
+  background-size: 44px 44px;
+}
+
+.text-gradient {
+  background: linear-gradient(110deg, #ffffff 20%, #c4b5fd 55%, #67e8f9 80%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+.glow-accent {
+  box-shadow: 0 0 0 1px var(--border), 0 8px 30px -10px rgba(124, 58, 237, 0.45);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+  }
+}
+
+@keyframes marquee {
+  from { transform: translateX(0); }
+  to { transform: translateX(-50%); }
+}
+.animate-marquee {
+  animation: marquee 28s linear infinite;
+}
