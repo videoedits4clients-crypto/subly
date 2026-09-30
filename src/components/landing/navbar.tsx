@@ -2,16 +2,21 @@
 
 import Link from "next/link";
 import { useState } from "react";
-import { Menu, X, Sparkles } from "lucide-react";
+import { Menu, X, Sparkles, Download } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import { SUBLY_DOWNLOAD_URL } from "@/lib/release-info";
 
+// Task 161847 (P19.21) — "Download" added, linking to the in-app /download page (full details:
+// release notes, install guide, checksum) rather than jumping straight to the binary — the
+// primary top-right button below is the direct one-click download instead.
 const LINKS = [
   { href: "#how-it-works", label: "How it works" },
   { href: "#features", label: "Features" },
   { href: "#styles", label: "Styles" },
   { href: "#pricing", label: "Pricing" },
   { href: "#faq", label: "FAQ" },
+  { href: "/download", label: "Download" },
 ];
 
 export function Navbar() {
@@ -40,11 +45,10 @@ export function Navbar() {
         </nav>
 
         <div className="hidden items-center gap-2 md:flex">
-          <Button variant="ghost" size="sm" asChild>
-            <Link href="/login">Log in</Link>
-          </Button>
           <Button variant="accent" size="sm" asChild>
-            <Link href="/register">Create subtitles</Link>
+            <a href={SUBLY_DOWNLOAD_URL}>
+              <Download className="size-3.5" /> Download for Windows
+            </a>
           </Button>
         </div>
 
@@ -65,11 +69,10 @@ export function Navbar() {
             </a>
           ))}
           <div className="mt-2 flex gap-2">
-            <Button variant="outline" size="sm" className="flex-1" asChild>
-              <Link href="/login">Log in</Link>
-            </Button>
             <Button variant="accent" size="sm" className="flex-1" asChild>
-              <Link href="/register">Create subtitles</Link>
+              <a href={SUBLY_DOWNLOAD_URL}>
+                <Download className="size-3.5" /> Download for Windows
+              </a>
             </Button>
           </div>
         </div>

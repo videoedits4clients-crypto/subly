@@ -1,10 +1,10 @@
 "use client";
 
-import Link from "next/link";
 import { motion } from "framer-motion";
-import { ArrowRight, PlayCircle } from "lucide-react";
+import { Download, FileText } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { HeroPreview } from "./hero-preview";
+import { SUBLY_DOWNLOAD_URL, SUBLY_RELEASE_NOTES_URL } from "@/lib/release-info";
 
 export function Hero() {
   return (
@@ -21,7 +21,7 @@ export function Hero() {
             className="mb-6 inline-flex items-center gap-2 rounded-full border border-border bg-surface-2 px-3 py-1 text-xs text-muted"
           >
             <span className="size-1.5 rounded-full bg-accent-cyan" />
-            AI-powered captions, styled your way
+            Windows desktop app
           </motion.div>
 
           <motion.h1
@@ -30,9 +30,9 @@ export function Hero() {
             transition={{ duration: 0.6, delay: 0.05 }}
             className="text-5xl font-bold leading-[1.05] tracking-tight sm:text-6xl"
           >
-            Auto subtitles.
+            Professional subtitle editing
             <br />
-            <span className="text-gradient">Styled your way.</span>
+            <span className="text-gradient">for Windows.</span>
           </motion.h1>
 
           <motion.p
@@ -41,7 +41,8 @@ export function Hero() {
             transition={{ duration: 0.6, delay: 0.12 }}
             className="mt-6 max-w-md text-lg text-muted"
           >
-            Turn any video into engaging, perfectly timed captions in seconds. Upload, style, export — no editing experience required.
+            Transcribe, edit, style, review, and export subtitles with a local-first desktop
+            workflow. Local transcription works offline after the one-time model download.
           </motion.p>
 
           <motion.div
@@ -51,13 +52,13 @@ export function Hero() {
             className="mt-8 flex flex-wrap items-center gap-3"
           >
             <Button size="lg" variant="accent" asChild>
-              <Link href="/register">
-                Create subtitles <ArrowRight className="size-4" />
-              </Link>
+              <a href={SUBLY_DOWNLOAD_URL}>
+                <Download className="size-4" /> Download SUBLY for Windows
+              </a>
             </Button>
             <Button size="lg" variant="outline" asChild>
-              <a href="#how-it-works">
-                <PlayCircle className="size-4" /> See how it works
+              <a href={SUBLY_RELEASE_NOTES_URL}>
+                <FileText className="size-4" /> View release notes
               </a>
             </Button>
           </motion.div>
@@ -68,7 +69,7 @@ export function Hero() {
             transition={{ delay: 0.4 }}
             className="mt-6 text-xs text-muted-2"
           >
-            No credit card required · Free plan available · Works with MP4, MOV, WebM, AVI, MKV
+            SUBLY 0.1.20 · Windows · ~566 MB · Free during preview · Works with MP4, MOV, WebM, AVI, MKV
           </motion.p>
         </div>
 

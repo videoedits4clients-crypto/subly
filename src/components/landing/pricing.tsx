@@ -1,6 +1,6 @@
-import Link from "next/link";
-import { Check } from "lucide-react";
+import { Check, Download } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { SUBLY_DOWNLOAD_URL } from "@/lib/release-info";
 
 /**
  * Task 137421 (P19.12, fixing the P0 finding in research/p19_11_release_candidate_gap_audit.md
@@ -14,7 +14,11 @@ import { Button } from "@/components/ui/button";
  * anchor links still land somewhere coherent.
  */
 const INCLUDED = [
-  "AI transcription with word-level timestamps",
+  // Task 161847 (P19.21): "AI transcription" reworded to "Local transcription" — accurate
+  // either way (Whisper genuinely is AI-based), but this specific phrasing sat right next to
+  // this same page's separate, cloud-dependent AI text tools with no distinguishing qualifier,
+  // a wording ambiguity flagged in research/p19_20_distribution_channel_report.md §2.
+  "Local transcription with word-level timestamps",
   "Full caption styling — fonts, colors, animation, word highlighting",
   "Timeline editing — trim, split, merge, reorder, ripple delete",
   "MP4, SRT, VTT and TXT export, up to 4K",
@@ -38,7 +42,9 @@ export function Pricing() {
             ))}
           </ul>
           <Button variant="accent" className="mt-8 w-full" asChild>
-            <Link href="/register">Start for free</Link>
+            <a href={SUBLY_DOWNLOAD_URL}>
+              <Download className="size-4" /> Download for Windows
+            </a>
           </Button>
         </div>
 

@@ -1,33 +1,52 @@
 "use client";
 
 import { motion } from "framer-motion";
-import { Type, Sparkles, Languages, Zap, MousePointerClick, History, Palette, Wand } from "lucide-react";
-import { supportedLanguageSummary } from "@/lib/language-policy";
+import { Languages, MousePointerClick, Palette, AudioWaveform, FileDown, ShieldCheck } from "lucide-react";
 
-// The multi-language feature description is GENERATED from lib/language-policy.ts's
-// supported-language list, not hand-typed — see that file's doc comment. This is the fix for
-// a real incident: this copy used to hard-code "10 languages, including Hindi, Gujarati,
-// Arabic and Japanese," none of which (beyond Hindi) were ever actually validated for
-// transcription, directly contradicting the V1 language-policy freeze. Deriving it from the
-// policy makes that specific class of drift structurally impossible going forward.
+/**
+ * Task 161847 (P19.21) — restructured into the six categories this task's own positioning
+ * calls for (local transcription, professional editing, caption styling, timeline, export,
+ * reliability), replacing the prior flatter feature-card list. "Local Transcription" hardcodes
+ * "English and Hindi ... Auto Detect" rather than deriving it from
+ * lib/language-policy.ts's supportedLanguageSummary() (as the old "Multi-language" card did) —
+ * safe against language-claims.test.ts, which only fails on a DEFERRED language's name
+ * appearing as copy, not on supported ones being spelled out directly; English and Hindi are
+ * both `status: "supported"` in LANGUAGE_POLICY. "Word-level styling where supported" in Caption
+ * Styling deliberately doesn't list font/animation as per-word properties — see
+ * word-style-capabilities.ts (color/fontSize/fontWeight/letterSpacing are "supported"; font
+ * family and animation are not per-word properties at all).
+ */
 const FEATURES = [
-  { icon: Type, title: "Word-level timing", desc: "Every word carries its own start/end timestamp — the foundation for karaoke-style animated captions." },
-  { icon: Palette, title: "Full style control", desc: "Font, size, weight, color, background, outline, shadow, position — all live-updating in preview." },
-  // Task 146220 (P19.17): "typewriter" renamed to "word fade" (matches the in-app label fix in
-  // animation-panel.tsx — it's a quick fade, not a true character-by-character reveal), and
-  // "per-word animations" replaced with an accurate description — animation presets apply per
-  // caption, not per individual word (see word-style-capabilities.ts, which has no "animation"
-  // entry at all); the real per-word effect is the automatic word-by-word highlight.
-  { icon: Sparkles, title: "Animation presets", desc: "Fade, pop, bounce, slide, word fade — entrance and exit animations, with automatic word-by-word highlighting." },
-  { icon: Wand, title: "AI text tools", desc: "Fix punctuation, remove filler words, rephrase, shorten — one click." },
   {
     icon: Languages,
-    title: "Multi-language",
-    desc: `Transcribe in ${supportedLanguageSummary()}, with deterministic Hinglish (Romanized Hindi) conversion built in.`,
+    title: "Local Transcription",
+    desc: "English and Hindi transcription with Auto Detect and word-level timestamps, plus deterministic Hinglish (Romanized Hindi) conversion.",
   },
-  { icon: MousePointerClick, title: "Precise timeline editing", desc: "Drag, split, merge, resize and reorder subtitle blocks like a pro NLE." },
-  { icon: History, title: "Full undo/redo", desc: "Every edit — text, timing, style, animation — is tracked and reversible." },
-  { icon: Zap, title: "Fast exports", desc: "Server-side FFmpeg rendering burns your captions in at up to 4K, without touching your browser's CPU." },
+  {
+    icon: MousePointerClick,
+    title: "Professional Editing",
+    desc: "Edit captions, timing, words, splits, merges, and timeline placement — with full undo/redo on every change.",
+  },
+  {
+    icon: Palette,
+    title: "Caption Styling",
+    desc: "Presets, full caption styling, and word-level color, size, weight, and letter-spacing overrides where supported.",
+  },
+  {
+    icon: AudioWaveform,
+    title: "Timeline",
+    desc: "Waveform-based timeline editing, playback, timing adjustment, and review tools.",
+  },
+  {
+    icon: FileDown,
+    title: "Export",
+    desc: "MP4 with burned-in captions up to 4K, plus SRT, VTT, and TXT.",
+  },
+  {
+    icon: ShieldCheck,
+    title: "Reliability",
+    desc: "Project persistence, autosave, and crash recovery.",
+  },
 ];
 
 export function Features() {
@@ -39,14 +58,14 @@ export function Features() {
           <p className="mt-4 text-muted">Built for creators who need speed without giving up control.</p>
         </div>
 
-        <div className="mt-16 grid grid-cols-1 gap-px overflow-hidden rounded-2xl border border-border bg-border sm:grid-cols-2 lg:grid-cols-4">
+        <div className="mt-16 grid grid-cols-1 gap-px overflow-hidden rounded-2xl border border-border bg-border sm:grid-cols-2 lg:grid-cols-3">
           {FEATURES.map((f, i) => (
             <motion.div
               key={f.title}
               initial={{ opacity: 0 }}
               whileInView={{ opacity: 1 }}
               viewport={{ once: true, margin: "-80px" }}
-              transition={{ duration: 0.4, delay: (i % 4) * 0.06 }}
+              transition={{ duration: 0.4, delay: (i % 3) * 0.06 }}
               className="group bg-surface p-6 transition-colors hover:bg-surface-2"
             >
               <f.icon className="size-5 text-accent" />
@@ -54,6 +73,14 @@ export function Features() {
               <p className="mt-2 text-sm text-muted">{f.desc}</p>
             </motion.div>
           ))}
+        </div>
+
+        {/* Task 161847 (P19.21): local-vs-cloud explanation — deliberately NOT "everything stays
+            on your computer" or "no internet required" (both false: the AI text tools/Translate
+            below are cloud-dependent, and see the FAQ for the one-time model-download exception). */}
+        <div className="mx-auto mt-10 max-w-2xl rounded-xl border border-border bg-surface px-6 py-5 text-center text-sm text-muted">
+          <p>Your transcription runs locally on your Windows PC after the model is downloaded.</p>
+          <p className="mt-1.5">AI text tools and translation are separate, cloud-dependent features.</p>
         </div>
       </div>
     </section>

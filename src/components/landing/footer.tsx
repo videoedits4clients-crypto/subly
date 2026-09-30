@@ -11,11 +11,12 @@ export function Footer() {
           </span>
           SUBLY
         </Link>
-        <p className="text-xs text-muted-2">© {new Date().getFullYear()} SUBLY. Turn videos into styled subtitles in seconds.</p>
+        <p className="text-xs text-muted-2">© {new Date().getFullYear()} SUBLY. Professional subtitle editing for Windows.</p>
         <div className="flex gap-6 text-xs text-muted-2">
           <a href="#features" className="hover:text-foreground">Features</a>
           <a href="#pricing" className="hover:text-foreground">Pricing</a>
           <a href="#faq" className="hover:text-foreground">FAQ</a>
+          <a href="/download" className="hover:text-foreground">Download</a>
         </div>
       </div>
     </footer>

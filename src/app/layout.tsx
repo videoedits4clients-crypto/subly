@@ -4,9 +4,9 @@ import { FONT_VARIABLE_CLASS } from "@/lib/fonts";
 import { Providers } from "@/components/providers";
 
 export const metadata: Metadata = {
-  title: "SUBLY — Turn videos into styled subtitles in seconds",
+  title: "SUBLY — Professional Subtitle Editor for Windows",
   description:
-    "AI auto subtitle generator and caption editor for Reels, TikTok, YouTube Shorts and more. Upload a video, get perfectly timed, beautifully styled captions in seconds.",
+    "SUBLY is a Windows desktop subtitle editor with local transcription, word-level timing, professional caption styling and MP4/SRT/VTT/TXT export.",
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {
