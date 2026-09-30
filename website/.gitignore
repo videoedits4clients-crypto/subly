@@ -3,3 +3,6 @@
 /out/
 next-env.d.ts
 *.tsbuildinfo
+# Symlink to ../src, created automatically by next.config.ts on every build — never committed
+# (a real symlink checked out on a machine without symlink support would just be a broken file).
+/src/shared

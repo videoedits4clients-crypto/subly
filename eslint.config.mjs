@@ -17,13 +17,14 @@ const eslintConfig = defineConfig([
     "release*/**",
     "python/build/**",
     "python/dist/**",
-    // Task 182741 (P19.26): the independent static site under website/ has its own eslint-free
-    // build (see website/package.json — no lint script). Flat-config ignore patterns are NOT
-    // implicitly `**/`-prefixed the way .gitignore patterns are, so the bare ".next/**"/"out/**"
-    // above only cover the repo root's own build output, not website/'s — without these, `npx
-    // eslint .` from the repo root lints website/out/**'s generated, minified JS bundles.
-    "website/.next/**",
-    "website/out/**",
+    // Task 182741 (P19.26)/194632 (P19.27): the independent static site under website/ is a
+    // separate project with its own eslint-free build (see website/package.json — no lint
+    // script). Ignoring the whole directory, not just its build output: website/src/shared is a
+    // symlink into ../src (see website/next.config.ts) so the reused components resolve their
+    // own node_modules correctly, but that means the same source files are reachable a second
+    // time under website/ — without this ignore, `npx eslint .` from the repo root would lint
+    // every file in src/ twice, once directly and once through the symlink.
+    "website/**",
   ]),
   {
     // The Electron main/preload process and desktop build scripts are plain

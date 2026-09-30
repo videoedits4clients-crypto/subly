@@ -20,16 +20,16 @@
       }
     ],
     "paths": {
-      "@/*": ["../src/*"]
+      "@/*": ["./src/shared/*"]
     }
   },
   "include": [
     "next-env.d.ts",
-    "**/*.ts",
-    "**/*.tsx",
+    "next.config.ts",
+    "src/app/**/*.ts",
+    "src/app/**/*.tsx",
     ".next/types/**/*.ts",
-    ".next/dev/types/**/*.ts",
-    "**/*.mts"
+    ".next/dev/types/**/*.ts"
   ],
-  "exclude": ["node_modules"]
+  "exclude": ["node_modules", "src/shared"]
 }

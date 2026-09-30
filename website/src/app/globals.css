@@ -1,13 +1,15 @@
 @import "tailwindcss";
 @plugin "tailwindcss-animate";
 
-/* Task 182741 (P19.26): Tailwind v4's automatic content detection only scans files inside this
-   project's own root (website/) — it never walks the reused components at ../src, since they
-   live outside that root. Without this, classes used only there (e.g. `hidden`, `md:flex`,
-   `sm:grid-cols-2`) are silently absent from the generated CSS. @source explicitly extends the
-   scan to the actual files this site imports, without copying them. */
-@source "../../../src/components/landing/**/*.{ts,tsx}";
-@source "../../../src/components/ui/**/*.{ts,tsx}";
+/* Task 182741 (P19.26)/194632 (P19.27): Tailwind v4's automatic content detection only scans
+   files inside this project's own root (website/) — it never walks the reused components on its
+   own. Without this, classes used only there (e.g. `hidden`, `md:flex`, `sm:grid-cols-2`) are
+   silently absent from the generated CSS. @source explicitly extends the scan to the actual
+   files this site imports, without copying them — via the src/shared symlink (see
+   next.config.ts) rather than a literal ../.. path, since Turbopack's root is now this project's
+   own directory and refuses to resolve paths that leave it. */
+@source "../shared/components/landing/**/*.{ts,tsx}";
+@source "../shared/components/ui/**/*.{ts,tsx}";
 
 :root {
   --background: #0a0a0c;
