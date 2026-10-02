@@ -30,7 +30,10 @@ const ENTRANCE: { value: EntranceAnimation; label: string }[] = [
 const EXIT: { value: ExitAnimation; label: string }[] = [
   { value: "none", label: "None" },
   { value: "fade", label: "Fade" },
-  { value: "slide", label: "Slide" },
+  { value: "slide-up", label: "Slide Up" },
+  { value: "slide-down", label: "Slide Down" },
+  { value: "slide-left", label: "Slide Left" },
+  { value: "slide-right", label: "Slide Right" },
   { value: "pop", label: "Pop" },
 ];
 
@@ -136,7 +139,7 @@ export function AnimationPanel() {
 
       <Section title="Exit animation">
         {EXIT.map((e) => (
-          <Chip key={e.value} active={animation.exit === e.value} onClick={() => patch({ exit: e.value })}>
+          <Chip key={e.value} active={animation.exit === e.value || (e.value === "slide-up" && animation.exit === "slide")} onClick={() => patch({ exit: e.value })}>
             {e.label}
           </Chip>
         ))}

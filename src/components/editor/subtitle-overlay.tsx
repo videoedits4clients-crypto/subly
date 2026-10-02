@@ -4,7 +4,10 @@ import { useMemo } from "react";
 import type { Subtitle, SubtitleStyle, AnimationConfig, Word } from "@/types/subtitle";
 import { applyTextCase } from "@/types/subtitle";
 import { styleToContainerCss, styleToTextCss, resolveFontFamilyCss, activeWordCss, scaleWordStyleValue } from "@/lib/subtitles/preview-style";
-import { effectiveEntranceDurationSec } from "@/lib/subtitles/animation-render";
+import { entranceFrameAt } from "@/lib/subtitles/entrance-animation";
+import { exitFrameAt } from "@/lib/subtitles/exit-animation";
+import { findActiveWordIndex } from "@/lib/subtitles/playback-context";
+import { groupWordsIntoLines } from "@/lib/subtitles/word-lines";
 import { cn } from "@/lib/utils";
 
 /** Live browser preview of one subtitle at the current playback time — the counterpart to buildAssDocument for the burned export. */
@@ -30,51 +33,33 @@ export function SubtitleOverlay({
   const containerStyle = useMemo(() => styleToContainerCss(style, refHeightPx), [style, refHeightPx]);
   const textStyle = useMemo(() => styleToTextCss(style, refHeightPx, subtitle.text), [style, refHeightPx, subtitle.text]);
 
-  const timeIntoSub = currentTime - subtitle.start;
-  const timeToEnd = subtitle.end - currentTime;
-
+  // Pure function of (time, word timing): the active word is whichever non-removed word's
+  // [start, end) contains the current time — no state carried between frames. `index` below is
+  // an index into this same non-removed array, so highlight and render can never disagree.
   const words = subtitle.words.filter((w) => !w.removed);
-  const activeIndex = style.wordHighlight
-    ? words.findIndex((w) => currentTime >= w.start && currentTime < w.end)
-    : -1;
+  const activeIndex = style.wordHighlight ? findActiveWordIndex(words, currentTime) : null;
 
-  const lines = subtitle.text.split("\n");
-  const wordsPerLine = lines.map((l) => l.split(/\s+/).filter(Boolean).length);
-  const lineStartIndexes = wordsPerLine.reduce<number[]>((acc, count, i) => {
-    acc.push(i === 0 ? 0 : acc[i - 1] + wordsPerLine[i - 1]);
-    return acc;
-  }, []);
-
-  const lineNodes = lines.map((line, li) => {
-    const count = wordsPerLine[li];
-    const startIdx = lineStartIndexes[li];
-    const lineWords = words.slice(startIdx, startIdx + count);
-    return (
-      <div key={li}>
-        {lineWords.map((w, i) => {
-          const globalIdx = startIdx + i;
-          const isActive = globalIdx === activeIndex;
-          return (
-            <span
-              key={globalIdx}
-              className="inline-block transition-transform"
-              style={{ fontFamily: resolveFontFamilyCss(style.fontFamily, w.text), ...wordDynamicStyle(style, animation, isActive, w, refHeightPx) }}
-            >
-              {applyTextCase(w.text, style.textCase)}
-              {i < lineWords.length - 1 ? " " : ""}
-            </span>
-          );
-        })}
-      </div>
-    );
-  });
+  const lineNodes = groupWordsIntoLines(subtitle.text, words).map((lineWords, li) => (
+    <div key={li}>
+      {lineWords.map(({ word: w, index }, i) => (
+        <span
+          key={index}
+          className="inline-block transition-transform"
+          style={{ fontFamily: resolveFontFamilyCss(style.fontFamily, w.text), ...wordDynamicStyle(style, animation, index === activeIndex, w, refHeightPx) }}
+        >
+          {applyTextCase(w.text, style.textCase)}
+          {i < lineWords.length - 1 ? " " : ""}
+        </span>
+      ))}
+    </div>
+  ));
 
   return (
     <div style={containerStyle}>
       <div
         style={{
           ...textStyle,
-          ...entranceExitStyle(animation, timeIntoSub, timeToEnd, isPlaying),
+          ...entranceExitStyle(animation, currentTime, subtitle.start, subtitle.end, isPlaying, refHeightPx),
         }}
         className={cn("select-none")}
       >
@@ -118,53 +103,27 @@ function hexWithAlphaLocal(hex: string, alpha: number): string {
 
 function entranceExitStyle(
   animation: AnimationConfig,
-  timeIntoSub: number,
-  timeToEnd: number,
+  currentTime: number,
+  captionStart: number,
+  captionEnd: number,
   isPlaying: boolean,
+  refHeightPx: number,
 ): React.CSSProperties {
   if (!isPlaying) return { opacity: 1, transform: "none" };
 
-  const entranceDurationSec = effectiveEntranceDurationSec(animation.entrance, animation.durationSec);
-  const entranceProgress = Math.min(1, Math.max(0, timeIntoSub / Math.max(0.01, entranceDurationSec)));
-  const exitProgress = Math.min(1, Math.max(0, timeToEnd / Math.max(0.01, animation.durationSec)));
+  // Entrance and exit are pure functions of time (lib/subtitles/entrance-animation.ts and
+  // exit-animation.ts — the same curves the ASS export samples into its tags). Their windows
+  // never overlap (animationWindows), so combining them is just a sum / product.
+  const inFrame = entranceFrameAt(animation, currentTime - captionStart);
+  const outFrame = exitFrameAt(currentTime, captionStart, captionEnd, animation);
+  const opacity = Math.min(inFrame.opacity, outFrame.opacity);
+  const dx = inFrame.dx + outFrame.dx;
+  const dy = inFrame.dy + outFrame.dy;
+  const scale = inFrame.scale * outFrame.scale;
 
-  const easeOut = (t: number) => 1 - Math.pow(1 - t, 3);
-  const inT = easeOut(entranceProgress);
-  const outT = easeOut(exitProgress);
-  const opacity = Math.min(inT, animation.exit === "none" ? 1 : outT === 1 ? 1 : outT);
+  const parts: string[] = [];
+  if (dx !== 0 || dy !== 0) parts.push(`translate(${dx * refHeightPx}px, ${dy * refHeightPx}px)`);
+  if (scale !== 1) parts.push(`scale(${scale})`);
 
-  let transform = "none";
-  const offset = 24;
-  switch (animation.entrance) {
-    case "slide-up":
-      transform = `translateY(${(1 - inT) * offset}px)`;
-      break;
-    case "slide-down":
-      transform = `translateY(${-(1 - inT) * offset}px)`;
-      break;
-    case "slide-left":
-      transform = `translateX(${(1 - inT) * offset}px)`;
-      break;
-    case "slide-right":
-      transform = `translateX(${-(1 - inT) * offset}px)`;
-      break;
-    case "pop":
-      transform = `scale(${0.6 + 0.4 * inT})`;
-      break;
-    case "bounce":
-      transform = `scale(${0.7 + 0.3 * Math.min(1.15, inT * 1.15)})`;
-      break;
-    // "word-pop"/"char-pop"/"typewriter" fall through to the plain fade above (no transform),
-    // matching export's own approximation for these three (see entranceOverride in ass.ts) —
-    // giving "word-pop" its own scale/transform here (as an earlier version of this file did,
-    // grouping it with "pop") would make the editor preview show a different animation than
-    // what the export actually burns in.
-    default:
-      transform = "none";
-  }
-
-  return {
-    opacity: animation.entrance === "none" && animation.exit === "none" ? 1 : opacity,
-    transform,
-  };
+  return { opacity, transform: parts.length ? parts.join(" ") : "none" };
 }

@@ -6,7 +6,10 @@ import type {
 } from "../../types/subtitle.ts";
 import { applyTextCase } from "../../types/subtitle.ts";
 import { detectScript, SCRIPT_FALLBACK_FONTS } from "./script-detect.ts";
-import { APPROXIMATED_FADE_CAP_SEC } from "./animation-render.ts";
+import { entranceAssParts, type AssMotionParts, type BaseAlphas } from "./entrance-animation.ts";
+import { animationWindows, exitAssParts, hasExit } from "./exit-animation.ts";
+import { hasEntrance } from "./entrance-animation.ts";
+import { groupWordsIntoLines } from "./word-lines.ts";
 import { resolveEffectiveWordStyleValue } from "./word-style-capabilities.ts";
 
 /**
@@ -135,38 +138,6 @@ function buildStyleLine(name: string, style: SubtitleStyle, effectiveFontFamily:
     marginV,
     1,
   ].join(",");
-}
-
-function entranceOverride(anim: AnimationConfig, lineDurSec: number): string {
-  const d = Math.round(clamp01v(anim.durationSec) * 1000);
-  switch (anim.entrance) {
-    case "none":
-      return "";
-    case "fade":
-      return `\\fad(${d},0)`;
-    case "pop":
-      return `\\fscx60\\fscy60\\t(0,${d},\\fscx100\\fscy100)`;
-    case "bounce":
-      return `\\fscx70\\fscy130\\t(0,${d},\\fscx100\\fscy100)`;
-    case "slide-up":
-      return `\\move(0,40,0,0,0,${d})`; // relative handled by caller via \pos wrapping
-    case "slide-down":
-      return `\\move(0,-40,0,0,0,${d})`;
-    case "slide-left":
-      return `\\move(40,0,0,0,0,${d})`;
-    case "slide-right":
-      return `\\move(-40,0,0,0,0,${d})`;
-    // Progressive character reveal isn't representable per-line in ASS without
-    // splitting into per-character Dialogue events; approximate with a fast fade, capped
-    // the SAME way the live preview caps it (see animation-render.ts) so the two never
-    // visibly disagree on how fast this fade actually plays.
-    case "typewriter":
-    case "word-pop":
-    case "char-pop":
-      return `\\fad(${Math.min(d, Math.round(APPROXIMATED_FADE_CAP_SEC * 1000))},0)`;
-    default:
-      return "";
-  }
 }
 
 function clamp01v(n: number) {
@@ -314,15 +285,7 @@ function estimateTextWidthPx(text: string, fontSizePx: number, letterSpacingPx: 
  * (for per-word width estimates), not just the rendered strings that function works with. */
 function wordsByLine(sub: Subtitle): Word[][] {
   const words = sub.words.filter((w) => !w.removed);
-  const lines = sub.text.split("\n");
-  const wordsPerLine = lines.map((l) => l.split(/\s+/).filter(Boolean).length);
-  const out: Word[][] = [];
-  let cursor = 0;
-  for (const count of wordsPerLine) {
-    out.push(words.slice(cursor, cursor + count));
-    cursor += count;
-  }
-  return out;
+  return groupWordsIntoLines(sub.text, words).map((line) => line.map((l) => l.word));
 }
 
 /** A rounded-rectangle ASS `\p`-drawing path: straight edges + 4 bezier corner arcs — real ASS-
@@ -459,9 +422,12 @@ interface Interval {
   activeWordIndex: number | null;
 }
 
-function buildIntervals(sub: Subtitle): Interval[] {
+function buildIntervals(sub: Subtitle, extraBreakpoints: number[] = []): Interval[] {
   const words = sub.words.filter((w) => !w.removed);
   const points = new Set<number>([sub.start, sub.end]);
+  // Entrance-end / exit-start: an event never straddles them, so one event never has to carry
+  // both an entrance move and an exit move (libass can express only one per event).
+  for (const b of extraBreakpoints) points.add(clampRange(b, sub.start, sub.end));
   for (const w of words) {
     points.add(clampRange(w.start, sub.start, sub.end));
     points.add(clampRange(w.end, sub.start, sub.end));
@@ -484,20 +450,51 @@ function clampRange(n: number, lo: number, hi: number) {
 }
 
 /** Renders one subtitle's full text with the active word (if any) wrapped in highlight override tags, and any non-Latin-script word (Devanagari, Gujarati) wrapped in its own `\fn` font override — a caption can freely mix "Today આપણે AI વિશે" and each word still gets glyphs that actually exist. */
-function renderLineText(sub: Subtitle, style: SubtitleStyle, anim: AnimationConfig, activeWordIndex: number | null, scale: number): string {
+function renderLineText(
+  sub: Subtitle,
+  style: SubtitleStyle,
+  anim: AnimationConfig,
+  activeWordIndex: number | null,
+  scale: number,
+  entranceLineTags: (mult: number) => string = () => "",
+  wordRampMs = 0,
+): string {
   const words = sub.words.filter((w) => !w.removed);
   const rendered = words.map((w) => {
     const text = applyTextCase(w.text, style.textCase);
     const isActive = style.wordHighlight && sub.words.indexOf(w) === activeWordIndex;
-    const activeOv = isActive ? wordOverride(style, anim) : "";
+    const scalesWhenActive = isActive && (anim.word === "scale" || anim.word === "bounce");
+    let activeOv = isActive ? wordOverride(style, anim) : "";
     const manualOv = wordStyleTag(style, w.style, scale);
+    // Active-word scale/bounce eases in (bounce overshoots first) instead of snapping, matching
+    // the preview's CSS transition on the active word. Skipped when the word has a manual
+    // font-size override (which wins over it anyway) or an entrance is still running.
+    if (scalesWhenActive && wordRampMs > 0 && !w.style?.fontSize) {
+      const target = Math.round(style.activeWordScale * 100);
+      const color = `\\c${assColorWithAlpha(style.highlightColor, style.opacity)}`;
+      const to = (pct: number) => `\\fscx${pct}\\fscy${pct}`;
+      if (anim.word === "bounce") {
+        const peak = Math.round(100 + (target - 100) * 1.5);
+        const mid = Math.round(wordRampMs * 0.55);
+        activeOv = `${color}${to(100)}\\t(0,${mid},${to(peak)})\\t(${mid},${wordRampMs},${to(target)})`;
+      } else {
+        activeOv = `${color}${to(100)}\\t(0,${wordRampMs},${to(target)})`;
+      }
+    }
+    // A word with its own scale (active-word scale / manual font size) animates the entrance
+    // relative to that scale — see EntranceAssParts.lineTags.
+    const ownScale = w.style?.fontSize ? w.style.fontSize / style.fontSize : scalesWhenActive ? style.activeWordScale : 1;
+    const entranceOv = entranceLineTags(ownScale);
     const wordFont = resolveFontFamily(style.fontFamily, w.text);
     const fontOv = wordFont === style.fontFamily ? "" : `\\fn${wordFont}`;
-    if (activeOv || manualOv || fontOv) {
+    if (activeOv || manualOv || fontOv || (entranceOv && ownScale !== 1)) {
       // Font override goes first so a highlight/manual color still applies on
       // top of it; manual overrides are last so a word's own explicit style
-      // wins over the automatic highlight for any property both define.
-      return `{${fontOv}${activeOv}${manualOv}}${escapeAssText(text)}{\\r}`;
+      // wins over the automatic highlight for any property both define. The entrance tags
+      // come after those, and `{\r}` re-applies them for the REST of the line — a bare `\r`
+      // used to reset the line-level pop/bounce scale after the first overridden word, so only
+      // that one word animated.
+      return `{${fontOv}${activeOv}${manualOv}${entranceOv}}${escapeAssText(text)}{\\r${entranceLineTags(1)}}`;
     }
     return escapeAssText(text);
   });
@@ -557,6 +554,17 @@ export function joinWithOriginalLineBreaks(originalText: string, renderedWords: 
     out[out.length - 1] = [out[out.length - 1], ...renderedWords.slice(cursor)].filter(Boolean).join(" ");
   }
   return out.join(lineBreak);
+}
+
+/** The ASS alpha bytes buildStyleLine encodes for a style's primary / outline / back colours. */
+function baseAlphas(style: SubtitleStyle): BaseAlphas {
+  const alphaByte = (opacity: number) => Math.round((1 - clamp01(opacity)) * 255);
+  const hasBox = style.backgroundOpacity > 0;
+  return {
+    a1: alphaByte(style.opacity),
+    a3: 0,
+    a4: hasBox ? alphaByte(style.backgroundOpacity) : style.shadowEnabled ? alphaByte(style.shadowOpacity) : 255,
+  };
 }
 
 export interface AssBuildOptions {
@@ -640,24 +648,32 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text`
     const x = Math.round((style.x / 100) * playResX);
     const y = Math.round((style.y / 100) * playResY);
 
-    const intervals = buildIntervals(sub);
+    const windows = animationWindows(sub.start, sub.end, anim);
+    // Only a caption with BOTH an entrance and an exit needs the split: an event that straddles
+    // just one window is handled by that window's own delay/offset, and leaving word-boundary
+    // intervals untouched keeps every other caption's events (and active-word chips) as they were.
+    const intervals = buildIntervals(sub, hasEntrance(anim.entrance) && hasExit(anim.exit) ? [windows.entranceEnd, windows.exitStart] : []);
+    const textAlphas = baseAlphas(style);
+    // The active-word chip is a primary-colour fill only (no border/shadow), at the style opacity.
+    const chipAlphas: BaseAlphas = { a1: textAlphas.a1, a3: 255, a4: 255 };
 
-    intervals.forEach((interval, i) => {
-      const isFirst = i === 0;
-      const isLast = i === intervals.length - 1;
+    intervals.forEach((interval) => {
       const lineDur = interval.end - interval.start;
 
-      const posBlock = `\\pos(${x},${y})`;
-      let fx = "";
-      if (isFirst) fx += entranceOverride(anim, lineDur);
-      if (isLast && anim.exit !== "none") {
-        const d = Math.round(clamp01v(anim.durationSec) * 1000);
-        const lineDurMs = Math.round(lineDur * 1000);
-        const t1 = Math.max(0, lineDurMs - d);
-        if (anim.exit === "fade") fx += `\\fad(0,${d})`;
-        else if (anim.exit === "pop") fx += `\\t(${t1},${lineDurMs},\\fscx60\\fscy60)\\fad(0,${d})`;
-        else if (anim.exit === "slide") fx += `\\t(${t1},${lineDurMs},\\frz0)\\move(${x},${y},${x},${y - 40},${t1},${lineDurMs})`;
-      }
+      // Entrance and exit are disjoint windows (see animationWindows), so at most one is active on
+      // any event. Each continues across EVERY interval it overlaps — see entranceAssParts /
+      // exitAssParts — and owns the event's only \pos/\move (libass honours just one of the two).
+      const entrance = entranceAssParts(anim, interval.start - sub.start, x, y, playResY, textAlphas);
+      const exit = exitAssParts(anim, sub.start, sub.end, interval.start, interval.end, x, y, playResY, textAlphas);
+      const motion: AssMotionParts = entrance.active ? entrance : exit;
+      const fadeTag = motion.fadeInMs ? `\\fad(${motion.fadeInMs},0)` : "";
+      const posBlock = motion.position;
+      const fx = fadeTag + motion.lineTags(1);
+      // Active-word scale eases in over the same window the preview's CSS transition uses —
+      // skipped while an entrance/exit is running on this event (the two would fight over \fscx).
+      const wordRampMs = motion.active
+        ? 0
+        : Math.min(Math.round(lineDur * 1000), Math.round(Math.max(0.05, clamp01v(anim.durationSec) * 0.6) * 1000));
 
       // Active-word background chip (bg-highlight): a Layer-0 vector-drawing Dialogue event,
       // emitted BEFORE (so it z-orders behind) this interval's Layer-1 text event — see the
@@ -674,12 +690,12 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text`
           const cornerRadius = 0.25 * chip.activeFontSizePx;
           const path = roundedRectPath(chip.width, chip.height, cornerRadius);
           events.push(
-            `Dialogue: 0,${msTime(interval.start)},${msTime(interval.end)},${styleName},,0,0,0,,{\\an7\\pos(${Math.round(chip.left)},${Math.round(chip.top)})\\bord0\\shad0\\1c${fillColor}\\p1}${path}{\\p0}`,
+            `Dialogue: 0,${msTime(interval.start)},${msTime(interval.end)},${styleName},,0,0,0,,{\\an7${motion.positionAt(chip.left, chip.top)}${motion.fadeInMs ? `\\fad(${motion.fadeInMs},0)` : ""}${motion.alpha(chipAlphas)}\\bord0\\shad0\\1c${fillColor}\\p1}${path}{\\p0}`,
           );
         }
       }
 
-      const text = renderLineText(sub, style, anim, interval.activeWordIndex, scale);
+      const text = renderLineText(sub, style, anim, interval.activeWordIndex, scale, motion.lineTags, wordRampMs);
       events.push(
         `Dialogue: 1,${msTime(interval.start)},${msTime(interval.end)},${styleName},,0,0,0,,{${posBlock}${fx}}${text}`,
       );

@@ -9,16 +9,13 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { useEditorStore } from "@/store/editor-store";
-import { resolveAnimation, resolveStyle } from "@/types/subtitle";
-import { SubtitleOverlay } from "./subtitle-overlay";
+import { LiveSubtitleLayer } from "./live-subtitle-layer";
 import { RecommendedStyles } from "./recommended-styles";
 import { formatTime } from "@/lib/utils";
 import { cn } from "@/lib/utils";
 import { parseTimelineTime, clampTimelineTime } from "@/lib/timeline/timecode";
 import { Input } from "@/components/ui/input";
 import { effectiveCuts, isInsideCut } from "@/lib/timeline/edit-model";
-import { applyOutputMode } from "@/lib/subtitles/output-mode";
-import { findActiveCaption } from "@/lib/subtitles/playback-context";
 
 export function VideoCanvas() {
   const project = useEditorStore((s) => s.project);
@@ -127,14 +124,6 @@ export function VideoCanvas() {
   if (!project?.video) return null;
 
   const { canvasWidth: refW, canvasHeight: refH, videoVisible, backgroundColor } = project.composition;
-  // Task 100742 (P13): now the SAME shared definition timeline.tsx's own active-caption highlight
-  // uses (lib/subtitles/playback-context.ts) — behavior unchanged, just no longer a second,
-  // independently-drifting copy of the identical `currentTime >= s.start && currentTime < s.end` check.
-  const activeSubtitleRaw = findActiveCaption(project.subtitles, currentTime);
-  // Preview must match export/SRT/VTT fidelity — same applyOutputMode used everywhere
-  // else text is displayed, so "hinglish" mode shows the Romanized text here too,
-  // word timing untouched (see lib/subtitles/output-mode.ts).
-  const activeSubtitle = activeSubtitleRaw ? applyOutputMode([activeSubtitleRaw], project.captionOutputMode)[0] : undefined;
   const playableStart = project.trimStart;
   const playableEnd = project.trimEnd ?? project.video.duration;
 
@@ -229,16 +218,9 @@ export function VideoCanvas() {
           </div>
         )}
 
-        {activeSubtitle && (
-          <SubtitleOverlay
-            subtitle={activeSubtitle}
-            style={resolveStyle(project, activeSubtitle)}
-            animation={resolveAnimation(project, activeSubtitle)}
-            currentTime={currentTime}
-            refHeightPx={containerHeight}
-            isPlaying={isPlaying}
-          />
-        )}
+        {/* Active caption at the video's REAL current time (per-frame while playing) — see
+            LiveSubtitleLayer / useLivePlaybackTime for why this doesn't read the ~4Hz store time. */}
+        <LiveSubtitleLayer videoRef={videoRef} refHeightPx={containerHeight} />
 
         <RecommendedStyles />
         </div>

@@ -103,7 +103,9 @@ export type EntranceAnimation =
   | "word-pop"
   | "char-pop";
 
-export type ExitAnimation = "none" | "fade" | "slide" | "pop";
+/** "slide" is the legacy value (saved projects reference it) and means slide-up, which is what the
+ * export always tried to render; the four directional values are what the editor now offers. */
+export type ExitAnimation = "none" | "fade" | "slide" | "slide-up" | "slide-down" | "slide-left" | "slide-right" | "pop";
 
 export type WordAnimation =
   | "none"
