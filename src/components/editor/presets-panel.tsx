@@ -4,9 +4,10 @@ import { useEffect, useState, useCallback, useMemo } from "react";
 import Link from "next/link";
 import { Palette, Plus, MoreVertical, Pencil, Trash2, Save, Search, Copy, RotateCcw } from "lucide-react";
 import { useEditorStore } from "@/store/editor-store";
-import { BUILT_IN_PRESETS, PRESET_CATEGORIES, type SubtitlePresetDef, type PresetCategory } from "@/lib/presets";
+import { PICKER_PRESETS, STYLE_FAMILIES, FAMILY_INFO, pickerPresetsByFamily, type SubtitlePresetDef, type StyleFamily } from "@/lib/presets";
 import { FONT_NAMES } from "@/lib/fonts";
-import { styleToTextCss, activeWordCss } from "@/lib/subtitles/preview-style";
+import { styleToContainerCss, styleToTextCss, activeWordCss } from "@/lib/subtitles/preview-style";
+import { ENTRANCE, EXIT, WORD } from "./animation-panel";
 import { extractStyleForApply, validateNewPresetName, findPresetByName, duplicatePresetName, type CustomPresetRecord } from "@/lib/custom-presets";
 import { api } from "@/lib/api-client";
 import { applyTextCase, type AnimationConfig, type SubtitleStyle } from "@/types/subtitle";
@@ -26,13 +27,24 @@ interface BrandKit {
   fontFamily: string;
 }
 
-/** "My Styles" (custom presets) is treated as one more entry in the same category filter chip
- * row as the 8 built-in categories (section 9's own recommended structure lists it right after
- * Retro) — it isn't a real PresetCategory value (custom presets aren't categorized, they're the
- * user's own flat list), just a UI-only label for the filter/search affordance. */
+/** "My Styles" (custom presets) is one more entry in the same filter chip row as the 12 built-in
+ * style families — it isn't a real StyleFamily value (custom presets aren't part of a family,
+ * they're the user's own flat list), just a UI-only label for the filter/search affordance. */
 const MY_STYLES_FILTER = "My Styles" as const;
-type CategoryFilter = PresetCategory | typeof MY_STYLES_FILTER | "All";
-const CATEGORY_FILTERS: CategoryFilter[] = ["All", ...PRESET_CATEGORIES, MY_STYLES_FILTER];
+type FamilyFilter = StyleFamily | typeof MY_STYLES_FILTER | "All";
+const FAMILY_FILTERS: FamilyFilter[] = ["All", ...STYLE_FAMILIES, MY_STYLES_FILTER];
+const filterLabel = (f: FamilyFilter) => (f === "All" || f === MY_STYLES_FILTER ? f : FAMILY_INFO[f].label);
+
+/** "Pop in · Fade out · Scale" — what the preset's motion actually is, read from its real
+ * AnimationConfig (the same option lists the Animation tab uses), not a hand-written caption. */
+function describeMotion(animation: AnimationConfig): string {
+  const label = <T extends string>(list: { value: T; label: string }[], v: T) => list.find((o) => o.value === v)?.label ?? v;
+  const parts: string[] = [];
+  if (animation.entrance !== "none") parts.push(`${label(ENTRANCE, animation.entrance)} in`);
+  if (animation.exit !== "none") parts.push(`${label(EXIT, animation.exit)} out`);
+  if (animation.word !== "none") parts.push(label(WORD, animation.word));
+  return parts.join(" · ") || "Static";
+}
 
 const SAMPLE_WORDS = ["This", "is", "amazing"];
 
@@ -50,14 +62,21 @@ const SAMPLE_WORDS = ["This", "is", "amazing"];
 function PresetPreview({ style, animation }: { style: SubtitleStyle; animation: AnimationConfig }) {
   const textCss = styleToTextCss(style, 260, SAMPLE_WORDS.join(" "));
   const activeCss = style.wordHighlight ? activeWordCss(style, animation) : undefined;
+  // The caption sits where the preset really puts it: the same styleToContainerCss the live preview
+  // uses positions it by the preset's own x / y / alignment / box width inside a miniature frame, so
+  // a top-left HUD, a bottom-right byline and a centred impact caption look different at a glance
+  // (this used to always be centred, which hid the biggest difference between families).
+  const justify = style.align === "left" ? "flex-start" : style.align === "right" ? "flex-end" : "center";
   return (
-    <div className="flex h-16 w-full items-center justify-center overflow-hidden rounded-lg bg-[#15151f] px-2">
-      <div style={{ ...textCss, display: "flex", flexWrap: "wrap", justifyContent: "center", maxWidth: "100%", gap: "0.3em" }}>
-        {SAMPLE_WORDS.map((w, i) => (
-          <span key={i} style={i === 1 ? activeCss : undefined}>
-            {applyTextCase(w, style.textCase)}
-          </span>
-        ))}
+    <div className="relative h-20 w-full overflow-hidden rounded-lg bg-[#15151f]">
+      <div style={{ ...styleToContainerCss(style, 260), zIndex: 1 }}>
+        <div style={{ ...textCss, display: "flex", flexWrap: "wrap", justifyContent: justify, maxWidth: "100%", gap: "0.3em" }}>
+          {SAMPLE_WORDS.map((w, i) => (
+            <span key={i} style={i === 1 ? activeCss : undefined}>
+              {applyTextCase(w, style.textCase)}
+            </span>
+          ))}
+        </div>
       </div>
     </div>
   );
@@ -69,12 +88,13 @@ function PresetCard({ preset, isActive, onApply }: { preset: SubtitlePresetDef; 
       onClick={onApply}
       title={preset.description}
       className={cn(
-        "flex flex-col items-center gap-2 rounded-xl border p-2.5 text-center transition-colors",
+        "flex flex-col items-center gap-1.5 rounded-xl border p-2.5 text-center transition-colors",
         isActive ? "border-accent bg-accent-soft ring-1 ring-accent" : "border-border-strong bg-surface-2 hover:bg-surface-3",
       )}
     >
       <PresetPreview style={preset.style} animation={preset.animation} />
       <span className={cn("text-xs font-medium", isActive && "text-accent")}>{preset.name}</span>
+      <span className="text-[10px] leading-tight text-muted-2">{describeMotion(preset.animation)}</span>
     </button>
   );
 }
@@ -163,7 +183,7 @@ export function PresetsPanel() {
   const [renameTarget, setRenameTarget] = useState<CustomPresetRecord | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<CustomPresetRecord | null>(null);
   const [search, setSearch] = useState("");
-  const [categoryFilter, setCategoryFilter] = useState<CategoryFilter>("All");
+  const [familyFilter, setFamilyFilter] = useState<FamilyFilter>("All");
 
   const loadCustomPresets = useCallback(() => {
     api.listCustomPresets().then(setCustomPresets).catch(() => setCustomPresets([]));
@@ -183,7 +203,7 @@ export function PresetsPanel() {
   // Recomputed from the project's actual current style, not just "the last preset clicked" —
   // so it stays honest if the user tweaks a slider afterward (no preset should look selected
   // once the style no longer matches it). Checked against both built-in and custom presets.
-  const activeBuiltInId = project ? (BUILT_IN_PRESETS.find((p) => JSON.stringify(p.style) === JSON.stringify(project.globalStyle))?.id ?? null) : null;
+  const activeBuiltInId = project ? (PICKER_PRESETS.find((p) => JSON.stringify(p.style) === JSON.stringify(project.globalStyle))?.id ?? null) : null;
   const activeCustomId =
     project && customPresets ? (customPresets.find((p) => JSON.stringify(p.style) === JSON.stringify(project.globalStyle))?.id ?? null) : null;
 
@@ -213,11 +233,11 @@ export function PresetsPanel() {
   const searchTerm = search.trim().toLowerCase();
   const matchesSearch = useCallback((name: string) => !searchTerm || name.toLowerCase().includes(searchTerm), [searchTerm]);
 
-  const visibleCategories = useMemo(
-    () => (categoryFilter === "All" ? PRESET_CATEGORIES : categoryFilter === MY_STYLES_FILTER ? [] : [categoryFilter]),
-    [categoryFilter],
+  const visibleFamilies = useMemo(
+    () => (familyFilter === "All" ? STYLE_FAMILIES : familyFilter === MY_STYLES_FILTER ? [] : [familyFilter]),
+    [familyFilter],
   );
-  const showCustomSection = categoryFilter === "All" || categoryFilter === MY_STYLES_FILTER;
+  const showCustomSection = familyFilter === "All" || familyFilter === MY_STYLES_FILTER;
 
   function applyBuiltIn(preset: SubtitlePresetDef) {
     applyPreset(preset.style, preset.animation);
@@ -377,29 +397,30 @@ export function PresetsPanel() {
             />
           </div>
           <div className="mt-2 flex flex-wrap gap-1.5">
-            {CATEGORY_FILTERS.map((cat) => (
+            {FAMILY_FILTERS.map((cat) => (
               <button
                 key={cat}
-                onClick={() => setCategoryFilter(cat)}
+                onClick={() => setFamilyFilter(cat)}
                 className={cn(
                   "rounded-full border px-2.5 py-1 text-[11px] font-medium transition-colors",
-                  categoryFilter === cat
+                  familyFilter === cat
                     ? "border-accent bg-accent-soft text-accent"
                     : "border-border-strong bg-surface-2 text-muted hover:bg-surface-3 hover:text-foreground",
                 )}
               >
-                {cat}
+                {filterLabel(cat)}
               </button>
             ))}
           </div>
         </div>
 
-        {visibleCategories.map((category) => {
-          const presets = BUILT_IN_PRESETS.filter((p) => p.category === category && matchesSearch(p.name));
+        {visibleFamilies.map((family) => {
+          const presets = pickerPresetsByFamily(family).filter((p) => matchesSearch(`${p.name} ${FAMILY_INFO[family].label}`));
           if (presets.length === 0) return null;
           return (
-            <div key={category}>
-              <h4 className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-muted-2">{category}</h4>
+            <div key={family}>
+              <h4 className="text-[11px] font-semibold uppercase tracking-wide text-muted-2">{FAMILY_INFO[family].label}</h4>
+              <p className="mb-2 text-[11px] text-muted-2">{FAMILY_INFO[family].tagline}</p>
               <div className="grid grid-cols-2 gap-3">
                 {presets.map((p) => (
                   <PresetCard key={p.id} preset={p} isActive={activeBuiltInId === p.id} onApply={() => applyBuiltIn(p)} />

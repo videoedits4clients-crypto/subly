@@ -1,5 +1,6 @@
 import { promises as fs } from "fs";
 import path from "path";
+import { normalizeFontFamilyNames } from "./font-name-normalize.ts";
 
 /**
  * Downloads and caches real font FILES for export rendering.
@@ -54,6 +55,10 @@ const AVAILABLE_WEIGHTS: Record<string, number[]> = {
   Quicksand: [400, 500, 600, 700],
   Fredoka: [400, 500, 600, 700],
   "Baloo 2": [400, 500, 600, 700, 800],
+  Caveat: [400, 500, 600, 700],
+  Kalam: [400, 700],
+  "Permanent Marker": [400],
+  Bangers: [400],
   Hind: [400, 500, 600, 700],
   "Noto Sans Devanagari": [400, 500, 600, 700, 800, 900],
   "Noto Sans Gujarati": [400, 500, 600, 700, 800, 900],
@@ -99,6 +104,17 @@ async function fetchTtfUrl(family: string, weight: number): Promise<string | nul
   return match?.[1] ?? null;
 }
 
+/** Rewrites a cached font's family name so libass matches it (see font-name-normalize.ts). Also runs on
+ * files that were cached or offline-seeded before this existed. Idempotent, and never fatal. */
+async function normalizeCachedFont(filePath: string): Promise<void> {
+  try {
+    const patched = normalizeFontFamilyNames(await fs.readFile(filePath));
+    if (patched) await fs.writeFile(filePath, patched);
+  } catch (err) {
+    console.error(`[fonts] couldn't normalize ${filePath}:`, err);
+  }
+}
+
 /** Ensures one (family, weight) pair is cached locally; returns its absolute path, or null if it couldn't be fetched. */
 export async function ensureFontCached(family: string, weight: number): Promise<string | null> {
   const clamped = clampWeight(family, weight);
@@ -106,6 +122,7 @@ export async function ensureFontCached(family: string, weight: number): Promise<
 
   try {
     await fs.access(filePath);
+    await normalizeCachedFont(filePath);
     return filePath;
   } catch {
     // not cached yet — fetch below
@@ -119,6 +136,7 @@ export async function ensureFontCached(family: string, weight: number): Promise<
     const buffer = Buffer.from(await res.arrayBuffer());
     await fs.mkdir(CACHE_DIR, { recursive: true });
     await fs.writeFile(filePath, buffer);
+    await normalizeCachedFont(filePath);
     return filePath;
   } catch (err) {
     console.error(`[fonts] failed to cache ${family} ${weight}:`, err);

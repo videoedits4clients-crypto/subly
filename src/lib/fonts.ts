@@ -24,6 +24,10 @@ import {
   Hind,
   Noto_Sans_Devanagari,
   Noto_Sans_Gujarati,
+  Caveat,
+  Kalam,
+  Bangers,
+  Permanent_Marker,
 } from "next/font/google";
 import { slugFont } from "@/lib/subtitles/preview-style";
 import { SCRIPT_FALLBACK_FONTS } from "@/lib/subtitles/script-detect";
@@ -36,7 +40,7 @@ import { SCRIPT_FALLBACK_FONTS } from "@/lib/subtitles/script-detect";
 // enormous"). Every font here is loaded via `next/font/google`, i.e. served
 // from Google's own Fonts catalog — all of it is SIL Open Font License 1.1,
 // which is what makes bundling/redistributing them in a desktop app fine.
-export type FontCategory = "Sans" | "Impact" | "Editorial" | "Rounded" | "Devanagari" | "Gujarati";
+export type FontCategory = "Sans" | "Impact" | "Editorial" | "Rounded" | "Handwritten" | "Display" | "Devanagari" | "Gujarati";
 
 export interface FontDef {
   name: string;
@@ -72,6 +76,11 @@ export const FONT_REGISTRY: FontDef[] = [
   { name: "Fredoka", variable: "--font-fredoka", weights: [400, 500, 600, 700], category: "Rounded" },
   { name: "Baloo 2", variable: "--font-baloo-2", weights: [400, 500, 600, 700, 800], category: "Rounded" },
 
+  { name: "Caveat", variable: "--font-caveat", weights: [400, 500, 600, 700], category: "Handwritten" },
+  { name: "Kalam", variable: "--font-kalam", weights: [400, 700], category: "Handwritten" },
+  { name: "Permanent Marker", variable: "--font-permanent-marker", weights: [400], category: "Handwritten" },
+  { name: "Bangers", variable: "--font-bangers", weights: [400], category: "Display" },
+
   { name: "Noto Sans Devanagari", variable: "--font-noto-sans-devanagari", weights: [400, 500, 600, 700], category: "Devanagari" },
   { name: "Hind", variable: "--font-hind", weights: [400, 500, 600, 700], category: "Devanagari" },
 
@@ -105,6 +114,12 @@ const nunito = Nunito({ subsets: ["latin"], variable: "--font-nunito", display: 
 const quicksand = Quicksand({ subsets: ["latin"], variable: "--font-quicksand", display: "swap" });
 const fredoka = Fredoka({ subsets: ["latin"], variable: "--font-fredoka", display: "swap" });
 const baloo2 = Baloo_2({ subsets: ["latin"], variable: "--font-baloo-2", display: "swap" });
+
+// P20.2 style families: handwritten (Caveat, Kalam, Permanent Marker) and comic display (Bangers).
+const caveat = Caveat({ subsets: ["latin"], variable: "--font-caveat", display: "swap" });
+const kalam = Kalam({ subsets: ["latin"], weight: ["400", "700"], variable: "--font-kalam", display: "swap" });
+const permanentMarker = Permanent_Marker({ subsets: ["latin"], weight: "400", variable: "--font-permanent-marker", display: "swap" });
+const bangers = Bangers({ subsets: ["latin"], weight: "400", variable: "--font-bangers", display: "swap" });
 
 // Noto Sans Devanagari/Gujarati are loaded with the "latin" subset too (in
 // addition to their own script) so they work correctly both as the automatic
@@ -148,6 +163,10 @@ export const FONT_VARIABLE_CLASS = [
   quicksand.variable,
   fredoka.variable,
   baloo2.variable,
+  caveat.variable,
+  kalam.variable,
+  permanentMarker.variable,
+  bangers.variable,
   notoDevanagari.variable,
   hind.variable,
   notoGujarati.variable,

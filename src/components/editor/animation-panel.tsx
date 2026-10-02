@@ -8,7 +8,7 @@ import { Label } from "@/components/ui/label";
 import { Slider } from "@/components/ui/slider";
 import { cn } from "@/lib/utils";
 
-const ENTRANCE: { value: EntranceAnimation; label: string }[] = [
+export const ENTRANCE: { value: EntranceAnimation; label: string }[] = [
   { value: "none", label: "None" },
   { value: "fade", label: "Fade" },
   { value: "pop", label: "Pop" },
@@ -27,7 +27,7 @@ const ENTRANCE: { value: EntranceAnimation; label: string }[] = [
   { value: "char-pop", label: "Char Pop" },
 ];
 
-const EXIT: { value: ExitAnimation; label: string }[] = [
+export const EXIT: { value: ExitAnimation; label: string }[] = [
   { value: "none", label: "None" },
   { value: "fade", label: "Fade" },
   { value: "slide-up", label: "Slide Up" },
@@ -37,7 +37,7 @@ const EXIT: { value: ExitAnimation; label: string }[] = [
   { value: "pop", label: "Pop" },
 ];
 
-const WORD: { value: WordAnimation; label: string }[] = [
+export const WORD: { value: WordAnimation; label: string }[] = [
   { value: "none", label: "None" },
   { value: "highlight", label: "Highlight" },
   { value: "scale", label: "Scale" },

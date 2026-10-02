@@ -87,23 +87,61 @@ export function resolveFontFamily(fontFamily: string, text: string): string {
   return script === "latin" ? fontFamily : SCRIPT_FALLBACK_FONTS[script].name;
 }
 
+/**
+ * A "glow" is a large, centred, blurred shadow (Neon, Cinematic Glow, Gradient Glow, Soft Shadow,
+ * Cinematic): blur ≥ 18px at the 1920-tall reference and at most a few px of offset, on a caption
+ * with no background box. ASS has no blurred shadow — the Style line's `Shadow` is a HARD offset
+ * copy, so these used to export as a doubled, ghosted second image of the text (confirmed with real
+ * frames) instead of the soft halo the preview draws. Glow captions are therefore rendered as TWO
+ * layers: a Layer-0 underlay in the shadow colour with libass's `\blur`, under the crisp Layer-1
+ * text. Every other shadow keeps the existing hard-offset rendering untouched.
+ */
+export function isGlowStyle(style: SubtitleStyle): boolean {
+  return (
+    style.shadowEnabled &&
+    style.backgroundOpacity <= 0 &&
+    style.shadowBlur >= 18 &&
+    Math.abs(style.shadowOffsetX) + Math.abs(style.shadowOffsetY) <= 4
+  );
+}
+
+/** The underlay Style line for a glow caption: same font/size/spacing/alignment as the text style,
+ * but filled in the shadow colour (at the shadow's opacity), with no outline and no shadow. */
+function buildGlowStyleLine(name: string, glowName: string, style: SubtitleStyle, effectiveFontFamily: string, scale: number): string {
+  const fields = buildStyleLine(name, { ...style, shadowEnabled: false, outlineEnabled: false }, effectiveFontFamily, scale).split(",");
+  const glow = assColorWithAlpha(style.shadowColor, style.shadowOpacity);
+  fields[0] = `Style: ${glowName}`;
+  fields[3] = glow; // PrimaryColour
+  fields[4] = glow; // SecondaryColour
+  fields[5] = glow; // OutlineColour
+  fields[6] = "&HFF000000&"; // BackColour
+  fields[16] = "0"; // Outline
+  return fields.join(",");
+}
+
 /** Builds one [V4+ Styles] line for a resolved SubtitleStyle + effective font, at a given render scale. */
 function buildStyleLine(name: string, style: SubtitleStyle, effectiveFontFamily: string, scale: number): string {
   const fontSize = Math.round(style.fontSize * scale);
   const spacing = Math.round(style.letterSpacing * scale);
   const outlineW = style.outlineEnabled ? Math.max(1, Math.round(style.outlineWidth * scale)) : 0;
-  const shadowDist = style.shadowEnabled
+  const shadowDist = style.shadowEnabled && !isGlowStyle(style)
     ? Math.max(1, Math.round(((style.shadowBlur + Math.abs(style.shadowOffsetX) + Math.abs(style.shadowOffsetY)) / 3) * scale))
     : 0;
 
   const primary = assColorWithAlpha(style.color, style.opacity);
   const hasBox = style.backgroundOpacity > 0;
+  // BorderStyle 3 (opaque box): libass draws the BOX in OutlineColour and the box's offset shadow
+  // in BackColour. The box colour used to be put in BackColour (and the text outline colour in
+  // OutlineColour), so every non-black background rendered as a BLACK box with a thin sliver of
+  // the real colour peeking out as a "shadow" — confirmed with real FFmpeg frames of News (red bar),
+  // Retro (orange) and Sticker (yellow). The preview draws no box shadow, so BackColour is made fully
+  // transparent here.
   const back = hasBox
-    ? assColorWithAlpha(style.backgroundColor, style.backgroundOpacity)
+    ? "&HFF000000&"
     : style.shadowEnabled
       ? assColorWithAlpha(style.shadowColor, style.shadowOpacity)
       : "&HFF000000&";
-  const outline = assColorWithAlpha(style.outlineColor, 1);
+  const outline = hasBox ? assColorWithAlpha(style.backgroundColor, style.backgroundOpacity) : assColorWithAlpha(style.outlineColor, 1);
 
   const borderStyle = hasBox ? 3 : 1;
   const outlineValue = hasBox
@@ -603,6 +641,7 @@ export function buildAssDocument({ subtitles, globalStyle, globalAnimation, play
       name = `S${styleNameBySignature.size}`;
       styleNameBySignature.set(signature, name);
       styleLines.push(buildStyleLine(name, resolved, resolved.fontFamily, scale));
+      if (isGlowStyle(resolved)) styleLines.push(buildGlowStyleLine(name, `${name}G`, resolved, resolved.fontFamily, scale));
     }
     styleNameBySubtitleId.set(sub.id, name);
   }
@@ -656,6 +695,10 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text`
     const textAlphas = baseAlphas(style);
     // The active-word chip is a primary-colour fill only (no border/shadow), at the style opacity.
     const chipAlphas: BaseAlphas = { a1: textAlphas.a1, a3: 255, a4: 255 };
+    // Glow captions (see isGlowStyle) also emit a blurred underlay in the shadow colour.
+    const glow = isGlowStyle(style);
+    const glowAlphas: BaseAlphas = { a1: Math.round((1 - clamp01(style.shadowOpacity)) * 255), a3: 255, a4: 255 };
+    const glowBlur = Math.max(1, Math.round(style.shadowBlur * scale * 0.5 * 10) / 10);
 
     intervals.forEach((interval) => {
       const lineDur = interval.end - interval.start;
@@ -693,6 +736,18 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text`
             `Dialogue: 0,${msTime(interval.start)},${msTime(interval.end)},${styleName},,0,0,0,,{\\an7${motion.positionAt(chip.left, chip.top)}${motion.fadeInMs ? `\\fad(${motion.fadeInMs},0)` : ""}${motion.alpha(chipAlphas)}\\bord0\\shad0\\1c${fillColor}\\p1}${path}{\\p0}`,
           );
         }
+      }
+
+      if (glow) {
+        // Same words, same layout (sizes/spacing/line breaks) and the same motion as the text, but
+        // one flat colour: the per-word colour overrides are stripped, so the halo never changes
+        // hue with the active word (matching the preview's constant text-shadow). The tags that
+        // {\r} resets are re-applied through the lineTags closure, blur included.
+        const glowTags = (mult: number) => motion.alpha(glowAlphas) + motion.scale(mult) + `\\blur${glowBlur}`;
+        const glowText = renderLineText(sub, style, anim, interval.activeWordIndex, scale, glowTags, wordRampMs).replace(/\\c&H[0-9A-Fa-f]{6,8}&/g, "");
+        events.push(
+          `Dialogue: 0,${msTime(interval.start)},${msTime(interval.end)},${styleName}G,,0,0,0,,{${posBlock}${fadeTag}${glowTags(1)}}${glowText}`,
+        );
       }
 
       const text = renderLineText(sub, style, anim, interval.activeWordIndex, scale, motion.lineTags, wordRampMs);

@@ -173,7 +173,10 @@ test("16. every pre-P5 built-in preset is still present with its content unchang
   for (const id of preP5Ids) assert.ok(ids.has(id), `expected pre-existing preset "${id}" to still exist`);
   assert.ok(BUILT_IN_PRESETS.length >= preP5Ids.length, "the library must never shrink below its pre-P5 size");
   assert.equal(getPreset("mrbeast")?.style.fontFamily, "Anton");
-  assert.equal(getPreset("karaoke")?.animation.word, "highlight");
+  // P20.2 refined Karaoke's motion (word highlight → colour + scale, no entrance fade); what must
+  // stay true is that it is still the word-highlighting preset.
+  assert.equal(getPreset("karaoke")?.style.wordHighlight, true);
+  assert.notEqual(getPreset("karaoke")?.animation.word, "none");
 });
 
 // --- Task 87426 (P6 Style Creator): Duplicate workflow ---------------------------------------
@@ -218,8 +221,9 @@ test("21. the 'Highlight' built-in preset no longer uses a black highlightColor 
   assert.match(preset.style.highlightColor, /^#[0-9a-fA-F]{6}$/, "must still be a valid hex color");
 });
 
-test("22. the corrected 'Highlight' preset's highlightColor doesn't collide with any other Highlight-category preset (each style should remain visually distinct)", () => {
-  const highlightCategoryPresets = BUILT_IN_PRESETS.filter((p) => p.category === "Highlight");
+test("22. the corrected 'Highlight' preset's highlightColor doesn't collide with any other visible Karaoke-family preset (each style should remain visually distinct)", () => {
+  // (P20.2: the old "Highlight" category became the Karaoke family; folded presets are hidden.)
+  const highlightCategoryPresets = BUILT_IN_PRESETS.filter((p) => p.family === "karaoke" && !p.replacedBy);
   const colors = highlightCategoryPresets.map((p) => ({ id: p.id, color: p.style.highlightColor.toLowerCase() }));
   const seen = new Map<string, string>();
   for (const { id, color } of colors) {

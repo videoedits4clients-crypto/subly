@@ -6,15 +6,17 @@ import { Popover, PopoverTrigger, PopoverContent } from "@/components/ui/popover
 import { Input } from "@/components/ui/input";
 import { FONT_REGISTRY, FONT_NAMES, slugFont, type FontCategory } from "@/lib/fonts";
 import { useSystemFonts } from "@/hooks/use-system-fonts";
+import { quoteFontFamily } from "@/lib/subtitles/preview-style";
 import { cn } from "@/lib/utils";
 
-const CATEGORY_ORDER: FontCategory[] = ["Sans", "Impact", "Editorial", "Rounded", "Devanagari", "Gujarati"];
+const CATEGORY_ORDER: FontCategory[] = ["Sans", "Impact", "Editorial", "Rounded", "Handwritten", "Display", "Devanagari", "Gujarati"];
 
 /** Same var()-with-inline-fallback pattern as resolveFontFamilyCss (see lib/subtitles/preview-style.ts)
  * — without the fallback INSIDE the var() call, an undefined --font-x variable (any system font
  * has no such variable) makes the whole property invalid rather than falling through to `name`. */
 function previewFontFamilyCss(name: string): string {
-  return `var(--font-${slugFont(name)}, ${name}), ${name}, sans-serif`;
+  const q = quoteFontFamily(name);
+  return `var(--font-${slugFont(name)}, ${q}), ${q}, sans-serif`;
 }
 
 /** Searchable, categorized font combobox (section 7 of the desktop UX pass; system fonts added in

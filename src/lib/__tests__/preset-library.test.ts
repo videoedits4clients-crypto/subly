@@ -10,7 +10,7 @@
  */
 import test from "node:test";
 import assert from "node:assert/strict";
-import { BUILT_IN_PRESETS, PRESET_CATEGORIES, presetsByCategory, getPreset } from "../presets.ts";
+import { BUILT_IN_PRESETS, STYLE_FAMILIES, presetsByFamily, getPreset } from "../presets.ts";
 import { resolveGlobalStyle, DEFAULT_SUBTITLE_STYLE, DEFAULT_ANIMATION } from "../../types/subtitle.ts";
 import { buildAssDocument } from "../subtitles/ass.ts";
 import type { Subtitle } from "../../types/subtitle.ts";
@@ -25,6 +25,7 @@ const REGISTERED_FONT_NAMES = new Set([
   "Bebas Neue", "Anton", "Oswald", "Archivo", "Archivo Black", "League Spartan",
   "Playfair Display", "DM Serif Display",
   "Nunito", "Quicksand", "Fredoka", "Baloo 2",
+  "Caveat", "Kalam", "Permanent Marker", "Bangers",
   "Noto Sans Devanagari", "Hind", "Noto Sans Gujarati",
 ]);
 
@@ -35,7 +36,7 @@ const VALID_VALIGN = new Set(["top", "center", "bottom"]);
 const VALID_ENTRANCE = new Set([
   "none", "fade", "pop", "slide-up", "slide-down", "slide-left", "slide-right", "bounce", "typewriter", "word-pop", "char-pop",
 ]);
-const VALID_EXIT = new Set(["none", "fade", "slide", "pop"]);
+const VALID_EXIT = new Set(["none", "fade", "slide", "slide-up", "slide-down", "slide-left", "slide-right", "pop"]);
 const VALID_WORD_ANIM = new Set(["none", "highlight", "scale", "bounce", "color", "underline", "bg-highlight"]);
 const HEX_COLOR = /^#[0-9a-fA-F]{6}$/;
 
@@ -51,16 +52,16 @@ test("1. every built-in preset has a unique id", () => {
   assert.equal(seen.size, BUILT_IN_PRESETS.length);
 });
 
-// --- 2. valid category -----------------------------------------------------------------------
+// --- 2. valid family -------------------------------------------------------------------------
 
-test("2. every built-in preset has a category from the canonical PRESET_CATEGORIES list", () => {
+test("2. every built-in preset has a family from the canonical STYLE_FAMILIES list", () => {
   for (const p of BUILT_IN_PRESETS) {
-    assert.ok((PRESET_CATEGORIES as readonly string[]).includes(p.category), `preset "${p.id}" has an invalid category: "${p.category}"`);
+    assert.ok((STYLE_FAMILIES as readonly string[]).includes(p.family), `preset "${p.id}" has an invalid family: "${p.family}"`);
   }
 });
 
-test("2b. presetsByCategory + PRESET_CATEGORIES together partition the whole library exactly once each", () => {
-  const total = PRESET_CATEGORIES.reduce((sum, cat) => sum + presetsByCategory(cat).length, 0);
+test("2b. presetsByFamily + STYLE_FAMILIES together partition the whole library exactly once each", () => {
+  const total = STYLE_FAMILIES.reduce((sum, family) => sum + presetsByFamily(family).length, 0);
   assert.equal(total, BUILT_IN_PRESETS.length);
 });
 
@@ -133,7 +134,7 @@ test("6b. mutating a style/animation object obtained from getPreset() never affe
   assert.equal(JSON.stringify(BUILT_IN_PRESETS), before);
 });
 
-// --- 13. representative presets export successfully (ASS generation, one per category) -------
+// --- 13. representative presets export successfully (ASS generation, one per family) ----------
 
 const SAMPLE_SUBTITLES: Subtitle[] = [
   { id: "1", index: 0, start: 0, end: 1.2, text: "This is amazing", words: [
@@ -143,10 +144,10 @@ const SAMPLE_SUBTITLES: Subtitle[] = [
   ] },
 ];
 
-test("13. one representative preset per category generates a valid, non-empty ASS document without throwing", () => {
-  for (const category of PRESET_CATEGORIES) {
-    const [preset] = presetsByCategory(category);
-    assert.ok(preset, `category "${category}" has no presets to test`);
+test("13. one representative preset per family generates a valid, non-empty ASS document without throwing", () => {
+  for (const family of STYLE_FAMILIES) {
+    const [preset] = presetsByFamily(family);
+    assert.ok(preset, `family "${family}" has no presets to test`);
     const doc = buildAssDocument({
       subtitles: SAMPLE_SUBTITLES,
       globalStyle: preset.style,
@@ -154,14 +155,14 @@ test("13. one representative preset per category generates a valid, non-empty AS
       playResX: 1080,
       playResY: 1920,
     });
-    assert.ok(doc.includes("[Script Info]"), `${preset.id} (${category}) did not produce a valid ASS header`);
-    assert.ok(doc.includes("[V4+ Styles]"), `${preset.id} (${category}) did not produce a style section`);
-    assert.ok(doc.includes("[Events]"), `${preset.id} (${category}) did not produce an events section`);
-    assert.ok(doc.length > 200, `${preset.id} (${category}) produced a suspiciously short document`);
+    assert.ok(doc.includes("[Script Info]"), `${preset.id} (${family}) did not produce a valid ASS header`);
+    assert.ok(doc.includes("[V4+ Styles]"), `${preset.id} (${family}) did not produce a style section`);
+    assert.ok(doc.includes("[Events]"), `${preset.id} (${family}) did not produce an events section`);
+    assert.ok(doc.length > 200, `${preset.id} (${family}) produced a suspiciously short document`);
   }
 });
 
-test("13b. every single built-in preset (all categories, all ~45) generates ASS without throwing — a broad, cheap crash guard", () => {
+test("13b. every single built-in preset (all families) generates ASS without throwing — a broad, cheap crash guard", () => {
   for (const p of BUILT_IN_PRESETS) {
     assert.doesNotThrow(() => {
       buildAssDocument({ subtitles: SAMPLE_SUBTITLES, globalStyle: p.style, globalAnimation: p.animation, playResX: 1080, playResY: 1920 });

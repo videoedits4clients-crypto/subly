@@ -54,7 +54,17 @@ export function resolveFontFamilyCss(fontFamily: string, text: string): string {
   // silently renders using the inherited font instead of falling through to Arial. This
   // matters for any font with no bundled `--font-x` variable — i.e. every Windows system
   // font (see lib/fonts/system-fonts.ts) — which otherwise renders as if untouched.
-  return `var(--font-${slugFont(fontFamily)}, ${fontFamily}), ${fontFamily}, sans-serif`;
+  // The family name is QUOTED: an unquoted name is only a valid CSS <custom-ident> when each word is
+  // an identifier, so `Baloo 2` (a word followed by a number) made the WHOLE declaration invalid —
+  // dropped at parse time, so the caption silently rendered in the inherited font (Inter). Confirmed in
+  // the real editor for every Baloo 2 style (Comic/Cartoon/Sticker Pill); the export was never affected.
+  const q = quoteFontFamily(fontFamily);
+  return `var(--font-${slugFont(fontFamily)}, ${q}), ${q}, sans-serif`;
+}
+
+/** A CSS-safe quoted font-family name. */
+export function quoteFontFamily(name: string): string {
+  return `"${name.replace(/["\\]/g, "")}"`;
 }
 
 /**
