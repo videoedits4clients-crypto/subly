@@ -429,6 +429,17 @@ export interface CutRange {
   reason: "trim" | "filler" | "silence" | "manual";
 }
 
+/**
+ * The text a caption's word is DISPLAYED with: applyTextCase, except that "sentence" case capitalises
+ * only the caption's FIRST word. applyTextCase works on one word at a time, so applying it to every
+ * word made "sentence" behave as Title Case ("Every Great Story Begins With One Single Word") in the
+ * preview, the picker and the export alike. `wordIndex` is the word's position among the caption's
+ * visible (non-removed) words.
+ */
+export function applyWordTextCase(text: string, textCase: TextCase, wordIndex: number): string {
+  return textCase === "sentence" && wordIndex > 0 ? text : applyTextCase(text, textCase);
+}
+
 export function applyTextCase(text: string, textCase: TextCase): string {
   switch (textCase) {
     case "uppercase":

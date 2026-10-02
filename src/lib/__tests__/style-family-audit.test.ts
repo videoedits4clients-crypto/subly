@@ -130,7 +130,7 @@ const FAMILY_CONTRACTS: Record<(typeof STYLE_FAMILIES)[number], (p: ReturnType<t
       : "must use rounded/comic lettering, a thick outline and a pop/bounce entrance",
   podcast: (p) => (p.style.backgroundOpacity > 0 && p.style.y >= 86 && p.style.fontSize <= 50 ? null : "must be a readable boxed lower third (box, y ≥ 86, ≤50px)"),
   documentary: (p) =>
-    p.style.backgroundOpacity >= 0.85 && p.style.backgroundRadius <= 4 && p.style.y >= 90 && p.style.fontSize <= 44 && p.style.textCase === "uppercase"
+    p.style.backgroundOpacity >= 0.85 && p.style.backgroundRadius <= 4 && p.style.y >= 90 && p.style.fontSize <= 60 && p.style.textCase === "uppercase"
       ? null
       : "must be a solid square-cornered lower-third bar with small caps",
   meme: (p) =>
@@ -180,7 +180,8 @@ test("merged presets stay resolvable but hidden, each pointing at a visible surv
 });
 
 // sha256 (first 16 hex) of JSON.stringify({style, animation}) of each KEEP-ed / merged preset, taken
-// from the P20.1-era definitions: these presets must stay byte-identical.
+// from the P20.1-era definitions: these presets must stay byte-identical. (P20.3 deliberately refined
+// cartoon, news, cinematic and vhs after the visual audit, so they left this list.)
 const UNCHANGED_HASHES: Record<string, string> = {
   reels: "164e4d838d29b8e8",
   mrbeast: "262a8926ff3f4137",
@@ -189,18 +190,14 @@ const UNCHANGED_HASHES: Record<string, string> = {
   "word-focus": "e97d0e7013ada8d1",
   classic: "c2fcfe659db48129",
   youtube: "d3773bd85b4e6a77",
-  news: "4a6bff29c460008b",
   mono: "fc094346a1bfc0ea",
-  cinematic: "901e3e5496be5ae5",
   "cinematic-glow": "5616ce02fa411281",
   sticker: "30b82be54d267c32",
   "candy-pop": "143669c7d50b2a35",
-  cartoon: "f346c934ffe0cbca",
   outline: "7ff90672b714fb73",
   "shadow-pop": "df9071ae977371b8",
   "gradient-glow": "b7aaacb0518c98f2",
   retro: "5f7c4e5965070482",
-  vhs: "24df20473129a800",
   arcade: "f036f407a1105e1a",
   "power-words": "a23847d7050d2d53",
   "creator-bold": "f4c39f40c330a510",
@@ -293,7 +290,7 @@ test("every visible preset renders: ASS for a multiline, active-word, mixed-styl
 
 test("glow presets are exactly the intended ones", () => {
   const glow = PICKER_PRESETS.filter((p) => isGlowStyle(p.style)).map((p) => p.id).sort();
-  assert.deepEqual(glow, ["cinematic", "cinematic-glow", "gradient-glow", "neon", "neon-tube", "soft-shadow"]);
+  assert.deepEqual(glow, ["cinematic", "cinematic-glow", "film-title", "gradient-glow", "minimal", "minimal-left", "neon", "neon-tube", "soft-shadow"]);
 });
 
 test("every family is represented in the real rendering path by at least one preset per distinct container type", () => {
@@ -318,4 +315,58 @@ test("preview font-family values quote the family name (an unquoted 'Baloo 2' in
   // which preset fonts are actually affected: a word that is not a valid CSS identifier ("2" in Baloo 2)
   const needsQuotes = [...new Set(BUILT_IN_PRESETS.map((p) => p.style.fontFamily))].filter((f) => !f.split(" ").every((w) => /^[A-Za-z_-][A-Za-z0-9_-]*$/.test(w)));
   assert.deepEqual(needsQuotes, ["Baloo 2"]);
+});
+
+// ───────────────────────── P20.3 visual-quality guards ─────────────────────────
+
+test("legibility floor: no visible preset is set below 40px at the 1920px reference (≈2% of frame height)", () => {
+  for (const p of PICKER_PRESETS) assert.ok(p.style.fontSize >= 40, `${p.id} is ${p.style.fontSize}px — too small to read on a phone`);
+  // the flagships were audited at export size: nothing under 42 except the deliberately tiny documentary bar
+  for (const p of REPS) if (p.id !== "documentary") assert.ok(p.style.fontSize >= 42, `${p.id} flagship is ${p.style.fontSize}px`);
+});
+
+test("no hard 'ghost' shadow on thin text: light-weight, outline-free styles use a soft glow or no shadow", () => {
+  // ASS draws a non-glow shadow as a hard offset copy; behind 400–500-weight strokes with no outline it
+  // reads as a doubled, dirty edge (confirmed on real frames of Film Title / Minimal).
+  // (single-weight display faces are stored as weight 400 but are heavy — a hard pop-art shadow is the point of Shadow Pop)
+  const HEAVY_DISPLAY = new Set(["Archivo Black", "Anton", "Bangers", "Bebas Neue", "Permanent Marker"]);
+  for (const p of PICKER_PRESETS) {
+    const st = p.style;
+    if (HEAVY_DISPLAY.has(st.fontFamily)) continue;
+    if (st.fontWeight <= 500 && !st.outlineEnabled && st.shadowEnabled && st.backgroundOpacity === 0) {
+      assert.ok(isGlowStyle(st), `${p.id}: a ${st.fontWeight}-weight outline-free caption has a hard ghost shadow (blur ${st.shadowBlur})`);
+    }
+  }
+});
+
+function luminance(hex: string): number {
+  const c = [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16) / 255).map((v) => (v <= 0.03928 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4)));
+  return 0.2126 * c[0] + 0.7152 * c[1] + 0.0722 * c[2];
+}
+const contrast = (a: string, b: string) => (Math.max(luminance(a), luminance(b)) + 0.05) / (Math.min(luminance(a), luminance(b)) + 0.05);
+
+test("solid captions keep readable contrast between the text and its box (WCAG large-text 3:1)", () => {
+  for (const p of PICKER_PRESETS) {
+    if (p.style.backgroundOpacity < 0.8) continue;
+    assert.ok(contrast(p.style.color, p.style.backgroundColor) >= 3, `${p.id}: text ${p.style.color} on box ${p.style.backgroundColor} is only ${contrast(p.style.color, p.style.backgroundColor).toFixed(2)}:1`);
+  }
+});
+
+test("a word's highlight colour stays readable against the box it sits on (solid boxes only)", () => {
+  for (const p of PICKER_PRESETS) {
+    if (p.style.backgroundOpacity < 0.8 || !p.style.wordHighlight) continue;
+    assert.ok(contrast(p.style.highlightColor, p.style.backgroundColor) >= 2, `${p.id}: highlight ${p.style.highlightColor} on ${p.style.backgroundColor}`);
+  }
+});
+
+test("VHS keeps its cyan letters distinct from the magenta fringe (they used to merge into one pink smear)", () => {
+  const { style } = getPreset("vhs")!;
+  assert.equal(style.outlineEnabled, false);
+  assert.equal(style.shadowBlur, 0, "a hard fringe, not a glow");
+  assert.notEqual(colorBucket(style.color), colorBucket(style.shadowColor));
+});
+
+test("motion language: Minimal just appears (no exit); Cinematic fades in AND out", () => {
+  assert.equal(getPreset("minimal")!.animation.exit, "none");
+  assert.equal(getPreset("cinematic")!.animation.exit, "fade");
 });

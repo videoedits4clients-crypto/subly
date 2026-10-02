@@ -81,17 +81,17 @@ export const BUILT_IN_PRESETS: SubtitlePresetDef[] = [
     style: s({
       fontFamily: "DM Sans",
       fontWeight: 500,
-      fontSize: 44,
+      fontSize: 46,
       textCase: "sentence",
       outlineEnabled: false,
       shadowEnabled: true,
-      shadowBlur: 14,
+      shadowBlur: 20,
       shadowOffsetY: 2,
-      shadowOpacity: 0.6,
-      y: 90,
+      shadowOpacity: 0.7,
+      y: 84, // a little above the bottom edge: clear of platform UI, and distinct from Cinematic's y: 88
       wordHighlight: false,
     }),
-    animation: a({ entrance: "fade", exit: "fade", word: "none", durationSec: 0.3 }),
+    animation: a({ entrance: "fade", exit: "none", word: "none", durationSec: 0.3 }),
   },
   {
     id: "minimal-left",
@@ -102,15 +102,15 @@ export const BUILT_IN_PRESETS: SubtitlePresetDef[] = [
     style: s({
       fontFamily: "Manrope",
       fontWeight: 500,
-      fontSize: 36,
+      fontSize: 42,
       textCase: "lowercase",
       letterSpacing: 1.5,
       color: "#F3F4F6",
       opacity: 0.92,
       outlineEnabled: false,
-      shadowBlur: 10,
+      shadowBlur: 18,
       shadowOffsetY: 2,
-      shadowOpacity: 0.55,
+      shadowOpacity: 0.7,
       x: 6,
       y: 93,
       align: "left",
@@ -204,7 +204,7 @@ export const BUILT_IN_PRESETS: SubtitlePresetDef[] = [
     name: "TikTok",
     description: "The viral look: bold caps, cyan highlight pop.",
     family: "bold-creator",
-    style: s({ fontFamily: "Poppins", fontWeight: 800, fontSize: 68, textCase: "uppercase", y: 58, highlightColor: "#22D3EE", activeWordScale: 1.18 }),
+    style: s({ fontFamily: "Poppins", fontWeight: 800, fontSize: 76, textCase: "uppercase", y: 58, highlightColor: "#22D3EE", activeWordScale: 1.18 }),
     animation: a({ entrance: "pop", word: "scale", durationSec: 0.15 }),
   },
   {
@@ -257,7 +257,7 @@ export const BUILT_IN_PRESETS: SubtitlePresetDef[] = [
     style: s({
       fontFamily: "Poppins",
       fontWeight: 800,
-      fontSize: 66,
+      fontSize: 72,
       textCase: "none",
       outlineWidth: 6,
       y: 74,
@@ -306,7 +306,7 @@ export const BUILT_IN_PRESETS: SubtitlePresetDef[] = [
     style: s({
       fontFamily: "Montserrat",
       fontWeight: 800,
-      fontSize: 60,
+      fontSize: 66,
       wordHighlight: true,
       highlightColor: "#22D3EE",
       color: "#E5E7EB",
@@ -402,7 +402,7 @@ export const BUILT_IN_PRESETS: SubtitlePresetDef[] = [
     style: s({
       fontFamily: "Playfair Display",
       fontWeight: 600,
-      fontSize: 52,
+      fontSize: 56,
       textCase: "sentence",
       letterSpacing: 1,
       color: "#FAF7F2",
@@ -426,7 +426,7 @@ export const BUILT_IN_PRESETS: SubtitlePresetDef[] = [
     style: s({
       fontFamily: "Playfair Display",
       fontWeight: 800,
-      fontSize: 40,
+      fontSize: 46,
       textCase: "uppercase",
       letterSpacing: 4,
       color: "#F5F0E6",
@@ -447,7 +447,7 @@ export const BUILT_IN_PRESETS: SubtitlePresetDef[] = [
     name: "Elegant",
     description: "Light weight, generous spacing, sentence case.",
     family: "editorial",
-    style: s({ fontFamily: "DM Sans", fontWeight: 500, fontSize: 48, letterSpacing: 1.5, textCase: "sentence", outlineWidth: 3, y: 84, wordHighlight: false }),
+    style: s({ fontFamily: "DM Sans", fontWeight: 500, fontSize: 48, letterSpacing: 2.5, textCase: "sentence", outlineWidth: 3, y: 84, wordHighlight: false }),
     animation: a({ entrance: "slide-up", exit: "fade", word: "none", durationSec: 0.5 }),
   },
   {
@@ -458,7 +458,7 @@ export const BUILT_IN_PRESETS: SubtitlePresetDef[] = [
     style: s({
       fontFamily: "Playfair Display",
       fontWeight: 700,
-      fontSize: 40,
+      fontSize: 46,
       textCase: "uppercase",
       letterSpacing: 6,
       color: "#F5E1A4",
@@ -492,7 +492,7 @@ export const BUILT_IN_PRESETS: SubtitlePresetDef[] = [
       color: "#F5F5F0",
       wordHighlight: false,
     }),
-    animation: a({ entrance: "fade", word: "none", durationSec: 0.4 }),
+    animation: a({ entrance: "fade", exit: "fade", word: "none", durationSec: 0.4 }),
   },
   {
     id: "film-title",
@@ -503,13 +503,13 @@ export const BUILT_IN_PRESETS: SubtitlePresetDef[] = [
     style: s({
       fontFamily: "Montserrat",
       fontWeight: 500,
-      fontSize: 36,
+      fontSize: 42,
       textCase: "uppercase",
       letterSpacing: 8,
       color: "#E8E6E0",
       outlineEnabled: false,
       shadowEnabled: true,
-      shadowBlur: 16,
+      shadowBlur: 22,
       shadowOpacity: 0.7,
       y: 93,
       wordHighlight: false,
@@ -539,12 +539,12 @@ export const BUILT_IN_PRESETS: SubtitlePresetDef[] = [
   {
     id: "soft-shadow",
     name: "Soft Shadow",
-    description: "Light-weight sentence-case text floating on a large, deep, soft shadow.",
+    description: "Big, bold sentence-case text lifted off busy footage by a deep, soft shadow.",
     family: "cinematic",
     style: s({
       fontFamily: "Montserrat",
-      fontWeight: 400,
-      fontSize: 44,
+      fontWeight: 700,
+      fontSize: 60,
       textCase: "sentence",
       letterSpacing: 1,
       outlineEnabled: false,
@@ -555,7 +555,7 @@ export const BUILT_IN_PRESETS: SubtitlePresetDef[] = [
       y: 84,
       wordHighlight: false,
     }),
-    animation: a({ entrance: "fade", exit: "fade", word: "none", durationSec: 0.5 }),
+    animation: a({ entrance: "slide-up", exit: "fade", word: "none", durationSec: 0.4 }),
   },
 
   // ───────────────────────── Neon ─────────────────────────
@@ -641,20 +641,23 @@ export const BUILT_IN_PRESETS: SubtitlePresetDef[] = [
   {
     id: "vhs",
     name: "VHS",
-    description: "Cyan text with a magenta fringe — a worn videotape look.",
+    description: "Cyan capitals with a hard magenta fringe — a worn videotape look.",
     family: "neon",
+    // Was cyan text inside a thick PINK outline, which merged into one pink smear and lost the cyan.
+    // The fringe is now a hard offset magenta shadow behind clean, unoutlined cyan letters.
     style: s({
       fontFamily: "Oswald",
       fontWeight: 600,
-      fontSize: 56,
+      fontSize: 76,
       textCase: "uppercase",
-      color: "#22D3EE",
-      outlineColor: "#F472B6",
-      outlineWidth: 4,
+      color: "#67E8F9",
+      outlineEnabled: false,
       shadowEnabled: true,
       shadowColor: "#F472B6",
-      shadowBlur: 10,
-      shadowOpacity: 0.6,
+      shadowBlur: 0,
+      shadowOffsetX: 6,
+      shadowOffsetY: 6,
+      shadowOpacity: 1,
       wordHighlight: true,
       highlightColor: "#FDE047",
     }),
@@ -803,7 +806,7 @@ export const BUILT_IN_PRESETS: SubtitlePresetDef[] = [
     style: s({
       fontFamily: "Bangers",
       fontWeight: 400,
-      fontSize: 84,
+      fontSize: 100,
       textCase: "uppercase",
       letterSpacing: 2,
       outlineColor: "#111827",
@@ -825,7 +828,7 @@ export const BUILT_IN_PRESETS: SubtitlePresetDef[] = [
     style: s({
       fontFamily: "Baloo 2",
       fontWeight: 600,
-      fontSize: 64,
+      fontSize: 76,
       textCase: "none",
       color: "#34D399",
       outlineColor: "#111827",
@@ -924,7 +927,7 @@ export const BUILT_IN_PRESETS: SubtitlePresetDef[] = [
     style: s({
       fontFamily: "Oswald",
       fontWeight: 500,
-      fontSize: 42,
+      fontSize: 56,
       textCase: "uppercase",
       y: 92,
       boxWidthPercent: 90,
@@ -946,7 +949,7 @@ export const BUILT_IN_PRESETS: SubtitlePresetDef[] = [
     style: s({
       fontFamily: "Manrope",
       fontWeight: 700,
-      fontSize: 34,
+      fontSize: 40,
       textCase: "uppercase",
       letterSpacing: 3,
       color: "#F8FAFC",
@@ -1032,7 +1035,7 @@ export const BUILT_IN_PRESETS: SubtitlePresetDef[] = [
   // ───────────────────────── Handwritten ─────────────────────────
   {
     id: "handwritten-caveat",
-    name: "Handwritten",
+    name: "Pen Script",
     description: "Loose Caveat pen lettering, slightly off-centre, with a yellow underline that follows the spoken word.",
     family: "handwritten",
     representative: true,

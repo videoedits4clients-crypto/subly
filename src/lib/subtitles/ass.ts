@@ -4,8 +4,8 @@ import type {
   SubtitleStyle,
   Word,
 } from "../../types/subtitle.ts";
-import { applyTextCase } from "../../types/subtitle.ts";
-import { detectScript, SCRIPT_FALLBACK_FONTS } from "./script-detect.ts";
+import { applyWordTextCase } from "../../types/subtitle.ts";
+import { detectScript, SCRIPT_FALLBACK_FONTS, scriptFallbackWeight } from "./script-detect.ts";
 import { entranceAssParts, type AssMotionParts, type BaseAlphas } from "./entrance-animation.ts";
 import { animationWindows, exitAssParts, hasExit } from "./exit-animation.ts";
 import { hasEntrance } from "./entrance-animation.ts";
@@ -404,7 +404,8 @@ function computeActiveWordChip(
   const letterSpacingPx = style.fontSize > 0 ? style.letterSpacing * (fontSizePx / style.fontSize) : 0;
   const widthCalibration = fontWidthCalibration(style.fontFamily);
   const spaceWidthPx = charWidthEm(" ") * fontSizePx * widthCalibration;
-  const displayText = (w: Word) => applyTextCase(w.text, style.textCase);
+  const visibleWords = sub.words.filter((w) => !w.removed);
+  const displayText = (w: Word) => applyWordTextCase(w.text, style.textCase, visibleWords.indexOf(w));
 
   // Effective values for the active word specifically (!== undefined, never a truthy check — an
   // explicit 0 or negative letterSpacing override is valid and must not fall back to the
@@ -498,8 +499,8 @@ function renderLineText(
   wordRampMs = 0,
 ): string {
   const words = sub.words.filter((w) => !w.removed);
-  const rendered = words.map((w) => {
-    const text = applyTextCase(w.text, style.textCase);
+  const rendered = words.map((w, wordIndex) => {
+    const text = applyWordTextCase(w.text, style.textCase, wordIndex);
     const isActive = style.wordHighlight && sub.words.indexOf(w) === activeWordIndex;
     const scalesWhenActive = isActive && (anim.word === "scale" || anim.word === "bounce");
     let activeOv = isActive ? wordOverride(style, anim) : "";
@@ -524,7 +525,10 @@ function renderLineText(
     const ownScale = w.style?.fontSize ? w.style.fontSize / style.fontSize : scalesWhenActive ? style.activeWordScale : 1;
     const entranceOv = entranceLineTags(ownScale);
     const wordFont = resolveFontFamily(style.fontFamily, w.text);
-    const fontOv = wordFont === style.fontFamily ? "" : `\\fn${wordFont}`;
+    // A script-fallback word (Devanagari/Gujarati) in a heavy single-weight display face is bolded, so it
+    // doesn't render hairline next to the Latin capitals (see scriptFallbackWeight).
+    const fallbackBold = wordFont !== style.fontFamily && style.fontWeight < 700 && scriptFallbackWeight(style.fontFamily, style.fontWeight) >= 700 ? "\\b1" : "";
+    const fontOv = wordFont === style.fontFamily ? "" : `\\fn${wordFont}${fallbackBold}`;
     if (activeOv || manualOv || fontOv || (entranceOv && ownScale !== 1)) {
       // Font override goes first so a highlight/manual color still applies on
       // top of it; manual overrides are last so a word's own explicit style

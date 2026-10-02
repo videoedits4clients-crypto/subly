@@ -57,11 +57,12 @@ meme-yellow, handwritten-caveat, handwritten-marker.
 No id was removed. Every pre-P20.2 id still resolves through `getPreset()`.
 
 * **KEEP** — byte-identical (hash-locked in the audit test): reels, mrbeast, bounce, highlight, word-focus, classic,
-  youtube, news, mono, cinematic, cinematic-glow, sticker, candy-pop, cartoon, outline, shadow-pop, gradient-glow,
-  retro, vhs, arcade.
-* **REFINE** — same identity, changed composition/motion: bold, tiktok, punch, gaming, jump-pop, word-burst, karaoke,
-  marker, minimal, podcast, comic, editorial, elegant, luxury, neon (motion only).
-* **REWORK (replace in place, id kept)** — color-sweep, modern, pulse-highlight, soft-shadow.
+  youtube, mono, cinematic-glow, sticker, candy-pop, outline, shadow-pop, gradient-glow, retro, arcade.
+* **REFINE** — same identity, changed composition/motion/size: bold, tiktok, punch, gaming, jump-pop, word-burst,
+  karaoke, marker, minimal, podcast, comic, editorial, elegant, luxury, neon (motion only); and, after the P20.3
+  visual audit, cinematic (fades out), cartoon (size), news (size).
+* **REWORK (replace in place, id kept)** — color-sweep, modern, pulse-highlight, soft-shadow, vhs (P20.3: the cyan/pink
+  outline merged into one pink smear; now clean cyan letters with a hard magenta fringe).
 * **MERGE** — folded into a survivor; stays in the array, byte-identical, flagged `replacedBy`, hidden from the picker:
   power-words → bold, creator-bold → bold, active-highlight → highlight, clean → classic, clean-white → classic,
   typewriter ("Wide Type") → mono.
@@ -105,3 +106,54 @@ New fonts (all SIL OFL, bundled in the offline seed): Caveat, Kalam, Permanent M
 * **Glow is approximate** — a blurred copy of the glyphs, not CSS's exact gaussian; strength differs slightly.
 * The preset-picker cards show position, alignment, container and the real word treatment, but are static: they do
   not play the entrance/exit (the motion is listed as text under the name).
+
+## P20.3 visual-quality pass
+
+All 49 visible presets were rendered in the real app (exported MP4) and graded A (strong) / B (good, could be
+refined) / C (too similar) / D (visually weak) / E (technically problematic) before anything was changed.
+
+**Changed, and why**
+
+| Style(s) | Problem found | Change |
+|---|---|---|
+| Sentence-case styles (Minimal, Minimal Left, Classic, Elegant, Editorial, Cinematic, Cinematic Glow, Soft Shadow, Podcast, Marker Notes) | `sentence` case was applied per word, so every caption rendered in Title Case ("Every Great Story Begins …") in the preview, picker and export (E) | `applyWordTextCase`: only the caption's first visible word is capitalised |
+| Film Title, Minimal, Minimal Left | thin outline-free text on a *hard* ghost shadow (blur below the glow threshold): doubled, dirty edges in the export (E/D) | soft glow shadows (blur ≥ 18); guard test added |
+| Film Title, Minimal Left, Magazine, Luxury, Documentary, News, Cartoon, Karaoke, TikTok, Jump Pop, Editorial, Comic, Soft Shadow, Minimal | too small to read comfortably (D) | sizes raised; legibility floor (≥ 40px) enforced by a test |
+| VHS | cyan text inside a thick pink outline merged into one pink smear (E) | unoutlined cyan letters + hard magenta offset fringe |
+| Soft Shadow | near-duplicate of Minimal (C) | big, bold, rises in, fades out — a distinct "readable on busy footage" role |
+| Minimal / Cinematic | two quiet bottom-centre styles (C) | Minimal sits a little higher and just appears; Cinematic fades in *and* out |
+| Handwritten flagship | its name equalled its family name | renamed "Pen Script" (id unchanged) |
+| Devanagari / Gujarati words in single-weight display faces (Anton, Bangers, Permanent Marker, Archivo Black, Bebas Neue) | the Noto fallback rendered at weight 400 — hairline next to heavy Latin capitals | fallback words are bolded in preview and export |
+
+**Left unchanged on purpose:** the highlight chip on Highlight/Marker is tall by design (it mirrors the preview CSS);
+Elegant stays close to Mono/Minimal because its font, colour and outline are locked by the website showcase.
+
+**Similarity audit (genuinely similar, flagged for a future merge)**: Mono ~ Elegant, Punch ~ Word Burst,
+Editorial ~ Luxury ~ Magazine (all gold/serif tracked caps), Retro ~ News (small solid bar). All flagship pairs differ
+in ≥ 4 of 14 dimensions.
+
+## Preview vs export text size (open issue found in P20.3 — not fixed)
+
+The same caption renders **larger in the editor preview than in the exported MP4**, by a font-dependent factor.
+Measured with one single-line caption at fontSize 64 (text width as a fraction of frame width):
+
+| Font | Preview | Export | Preview ÷ Export |
+|---|---|---|---|
+| Inter 800 | 0.573 | 0.403 | 1.42 |
+| Poppins 800 | 0.576 | 0.328 | 1.76 |
+| Anton | 0.393 | 0.226 | 1.74 |
+| Oswald 600 | 0.446 | 0.263 | 1.70 |
+| Archivo 900 | 0.618 | 0.412 | 1.50 |
+| Roboto 700 | 0.524 | 0.436 | 1.20 |
+| DM Sans 700 | 0.553 | 0.419 | 1.32 |
+| Baloo 2 800 | 0.507 | 0.322 | 1.57 |
+| Playfair 700 | 0.568 | 0.407 | 1.40 |
+| Montserrat 800 | 0.625 | 0.403 | 1.55 |
+| Bebas Neue | 0.322 | 0.247 | 1.30 |
+| Caveat 700 | 0.425 | 0.338 | 1.26 |
+
+Likely cause (not yet confirmed in code): the preview's `fontSize` is a CSS *em*, while an ASS `Fontsize` is the font's
+*cell height* (ascent + descent), so libass renders the em at `Fontsize ÷ (ascent+descent)` — different for every font.
+A fix would scale the ASS size per font from its OS/2 metrics, but it also changes how wide every exported caption is
+(wide captions would then overflow the frame, because the export never wraps — `WrapStyle: 2`), so it needs wrapping and
+the active-word-chip width calibration revisited together. See the P20.3 report for the recommended next task.

@@ -30,3 +30,16 @@ export const SCRIPT_FALLBACK_FONTS: Record<Exclude<TextScript, "latin">, { name:
   devanagari: { name: "Noto Sans Devanagari", variable: "--font-noto-sans-devanagari" },
   gujarati: { name: "Noto Sans Gujarati", variable: "--font-noto-sans-gujarati" },
 };
+
+/**
+ * Single-weight display faces (stored as weight 400, but visually heavy): the Devanagari/Gujarati
+ * fallback for a word set in one of them would otherwise render at 400 — hairline next to Latin
+ * capitals in Anton/Bangers/Archivo Black. Their fallback words are bolded instead.
+ */
+export const HEAVY_DISPLAY_FONTS: ReadonlySet<string> = new Set(["Anton", "Archivo Black", "Bangers", "Bebas Neue", "Permanent Marker"]);
+
+/** The weight a script-fallback word should use: the caption's own weight, raised to 700 when the
+ * caption's font is a heavy single-weight display face. */
+export function scriptFallbackWeight(fontFamily: string, fontWeight: number): number {
+  return HEAVY_DISPLAY_FONTS.has(fontFamily) ? Math.max(fontWeight, 700) : fontWeight;
+}

@@ -170,3 +170,108 @@ test("bg-highlight chips and glow coexist: chips stay Layer 0, are counted once 
   assert.equal(chips.length, 3, "one chip per active-word interval");
   assert.equal(underlays.length, events(doc, 1).length);
 });
+
+// ───────────────────────── sentence case (P20.3) ─────────────────────────
+
+test("sentence case capitalises only the caption's FIRST word (it used to Title-Case every word)", async () => {
+  const { applyWordTextCase } = await import("../../../types/subtitle.ts");
+  assert.equal(applyWordTextCase("every", "sentence", 0), "Every");
+  assert.equal(applyWordTextCase("great", "sentence", 1), "great");
+  assert.equal(applyWordTextCase("iPhone", "sentence", 3), "iPhone", "later words keep their natural capitalisation");
+  assert.equal(applyWordTextCase("great", "uppercase", 2), "GREAT");
+  assert.equal(applyWordTextCase("GREAT", "lowercase", 2), "great");
+  assert.equal(applyWordTextCase("great", "none", 0), "great");
+});
+
+test("export: a sentence-case caption renders 'Every great story', not 'Every Great Story'", () => {
+  const sub: Subtitle = {
+    id: "s",
+    index: 0,
+    start: 0,
+    end: 2,
+    text: "every great story",
+    words: [
+      { text: "every", start: 0, end: 0.6 },
+      { text: "great", start: 0.6, end: 1.2 },
+      { text: "story", start: 1.2, end: 2 },
+    ],
+  };
+  const doc = render({ textCase: "sentence" }, { word: "none" }, [sub]);
+  const text = events(doc, 1)[0];
+  assert.match(text, /Every great story/);
+  assert.ok(!/Great|Story/.test(text));
+});
+
+test("export: if the first word was removed, the next visible word becomes the capitalised first word", () => {
+  const sub: Subtitle = {
+    id: "s",
+    index: 0,
+    start: 0,
+    end: 2,
+    text: "great story",
+    words: [
+      { text: "um", start: 0, end: 0.4, removed: true },
+      { text: "great", start: 0.4, end: 1.2 },
+      { text: "story", start: 1.2, end: 2 },
+    ],
+  };
+  const text = events(render({ textCase: "sentence" }, { word: "none" }, [sub]), 1)[0];
+  assert.match(text, /Great story/);
+  assert.ok(!/um/i.test(text));
+});
+
+test("preview and picker use the same per-caption sentence-case rule", async () => {
+  const { readFileSync } = await import("node:fs");
+  const { fileURLToPath } = await import("node:url");
+  const path = await import("node:path");
+  const root = path.join(path.dirname(fileURLToPath(import.meta.url)), "..", "..", "..");
+  for (const f of ["components/editor/subtitle-overlay.tsx", "components/editor/presets-panel.tsx", "lib/subtitles/ass.ts"]) {
+    const src = readFileSync(path.join(root, f), "utf-8");
+    assert.match(src, /applyWordTextCase/, `${f} must use applyWordTextCase`);
+    assert.ok(!/[^a-zA-Z]applyTextCase\(/.test(src.replace(/applyWordTextCase/g, "")), `${f} must not call the per-word applyTextCase directly`);
+  }
+});
+
+// ───────────────────────── script fallback weight (P20.3) ─────────────────────────
+
+test("a Devanagari word in a heavy single-weight display face (Anton, Bangers…) is bolded; Latin words and normal fonts are not", async () => {
+  const { scriptFallbackWeight, HEAVY_DISPLAY_FONTS } = await import("../script-detect.ts");
+  assert.equal(scriptFallbackWeight("Anton", 400), 700);
+  assert.equal(scriptFallbackWeight("Bangers", 400), 700);
+  assert.equal(scriptFallbackWeight("Inter", 400), 400, "a normal family keeps its own weight");
+  assert.equal(scriptFallbackWeight("Inter", 800), 800);
+  assert.equal(scriptFallbackWeight("Anton", 900), 900);
+  assert.ok(HEAVY_DISPLAY_FONTS.has("Permanent Marker") && HEAVY_DISPLAY_FONTS.has("Archivo Black") && HEAVY_DISPLAY_FONTS.has("Bebas Neue"));
+
+  const hindi: Subtitle = {
+    id: "h",
+    index: 0,
+    start: 0,
+    end: 2,
+    text: "नमस्ते world",
+    words: [
+      { text: "नमस्ते", start: 0, end: 1 },
+      { text: "world", start: 1, end: 2 },
+    ],
+  };
+  const anton = events(render({ fontFamily: "Anton", fontWeight: 400, wordHighlight: false }, { word: "none" }, [hindi]), 1)[0];
+  assert.match(anton, /\{\\fnNoto Sans Devanagari\\b1\}नमस्ते/, "the fallback word is bolded");
+  assert.equal((anton.match(/\\b1/g) ?? []).length, 1, "only the fallback word is bolded — the Latin word is untouched");
+  const inter = events(render({ fontFamily: "Inter", fontWeight: 400, wordHighlight: false }, { word: "none" }, [hindi]), 1)[0];
+  assert.ok(!/\\b1/.test(inter), "a normal family's fallback keeps weight 400");
+  const bold = events(render({ fontFamily: "Anton", fontWeight: 700, wordHighlight: false }, { word: "none" }, [hindi]), 1)[0];
+  assert.ok(!/\\b1/.test(bold), "already bold via the style line — no override needed");
+});
+
+test("a word's own weight override still wins over the fallback boost", () => {
+  const sub: Subtitle = {
+    id: "h",
+    index: 0,
+    start: 0,
+    end: 1,
+    text: "नमस्ते",
+    words: [{ text: "नमस्ते", start: 0, end: 1, style: { fontWeight: 400 } }],
+  };
+  const text = events(render({ fontFamily: "Bangers", fontWeight: 400, wordHighlight: false }, { word: "none" }, [sub]), 1)[0];
+  assert.match(text, /\\b1.*\\b0/, "manual \\b0 comes after the automatic \\b1");
+});

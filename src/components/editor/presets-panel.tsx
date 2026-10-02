@@ -10,7 +10,7 @@ import { styleToContainerCss, styleToTextCss, activeWordCss } from "@/lib/subtit
 import { ENTRANCE, EXIT, WORD } from "./animation-panel";
 import { extractStyleForApply, validateNewPresetName, findPresetByName, duplicatePresetName, type CustomPresetRecord } from "@/lib/custom-presets";
 import { api } from "@/lib/api-client";
-import { applyTextCase, type AnimationConfig, type SubtitleStyle } from "@/types/subtitle";
+import { applyWordTextCase, type AnimationConfig, type SubtitleStyle } from "@/types/subtitle";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -73,7 +73,7 @@ function PresetPreview({ style, animation }: { style: SubtitleStyle; animation: 
         <div style={{ ...textCss, display: "flex", flexWrap: "wrap", justifyContent: justify, maxWidth: "100%", gap: "0.3em" }}>
           {SAMPLE_WORDS.map((w, i) => (
             <span key={i} style={i === 1 ? activeCss : undefined}>
-              {applyTextCase(w, style.textCase)}
+              {applyWordTextCase(w, style.textCase, i)}
             </span>
           ))}
         </div>

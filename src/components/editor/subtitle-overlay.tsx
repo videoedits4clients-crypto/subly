@@ -2,11 +2,12 @@
 
 import { useMemo } from "react";
 import type { Subtitle, SubtitleStyle, AnimationConfig, Word } from "@/types/subtitle";
-import { applyTextCase } from "@/types/subtitle";
+import { applyWordTextCase } from "@/types/subtitle";
 import { styleToContainerCss, styleToTextCss, resolveFontFamilyCss, activeWordCss, scaleWordStyleValue } from "@/lib/subtitles/preview-style";
 import { entranceFrameAt } from "@/lib/subtitles/entrance-animation";
 import { exitFrameAt } from "@/lib/subtitles/exit-animation";
 import { findActiveWordIndex } from "@/lib/subtitles/playback-context";
+import { detectScript, scriptFallbackWeight } from "@/lib/subtitles/script-detect";
 import { groupWordsIntoLines } from "@/lib/subtitles/word-lines";
 import { cn } from "@/lib/utils";
 
@@ -45,9 +46,14 @@ export function SubtitleOverlay({
         <span
           key={index}
           className="inline-block transition-transform"
-          style={{ fontFamily: resolveFontFamilyCss(style.fontFamily, w.text), ...wordDynamicStyle(style, animation, index === activeIndex, w, refHeightPx) }}
+          style={{
+            fontFamily: resolveFontFamilyCss(style.fontFamily, w.text),
+            // script-fallback words in a heavy single-weight display face are bolded (see scriptFallbackWeight)
+            ...(detectScript(w.text) !== "latin" ? { fontWeight: scriptFallbackWeight(style.fontFamily, style.fontWeight) } : {}),
+            ...wordDynamicStyle(style, animation, index === activeIndex, w, refHeightPx),
+          }}
         >
-          {applyTextCase(w.text, style.textCase)}
+          {applyWordTextCase(w.text, style.textCase, index)}
           {i < lineWords.length - 1 ? " " : ""}
         </span>
       ))}
