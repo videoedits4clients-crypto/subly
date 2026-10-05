@@ -37,6 +37,10 @@ export function LiveSubtitleLayer({ videoRef, refHeightPx }: { videoRef: RefObje
   if (!activeSubtitle || !style || !animation) return null;
   return (
     <SubtitleOverlay
+      // A new caption gets fresh DOM. The word spans are keyed by index and carry a CSS transition (the
+      // active-word treatment), so reusing them would animate the PREVIOUS caption's last highlighted word
+      // (scale / colour) into the next caption's first frames.
+      key={activeSubtitle.id}
       subtitle={activeSubtitle}
       style={style}
       animation={animation}

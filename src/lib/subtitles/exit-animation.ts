@@ -8,6 +8,7 @@ import {
   resolveEntranceDurationSec,
   withBaseAlphas,
   OPAQUE_BASE,
+  SCALE_SEGMENTS,
   SLIDE_DISTANCE_FRAC,
   type AssMotionParts,
   type BaseAlphas,
@@ -86,6 +87,29 @@ export function animationWindows(
   return { entranceEnd, exitStart };
 }
 
+/**
+ * Times (seconds) at which the entrance's scale curve changes slope, i.e. the boundaries of the
+ * piecewise-linear segments the ASS export samples it into. A caption that scales about its block
+ * centre (see MotionSpec.origin) needs one event per segment, because an anchor's position offset is
+ * linear in the scale. Empty for entrances that don't scale; the exit pop's scale is itself linear, so
+ * it needs none.
+ */
+export function scaleBreakpoints(
+  animation: Pick<AnimationConfig, "entrance" | "exit" | "durationSec">,
+  captionStart: number,
+  captionEnd: number,
+): number[] {
+  if (animation.entrance !== "pop" && animation.entrance !== "bounce") return [];
+  const d = resolveEntranceDurationSec(animation);
+  const { entranceEnd } = animationWindows(captionStart, captionEnd, animation);
+  const out: number[] = [];
+  for (let k = 1; k < SCALE_SEGMENTS; k++) {
+    const t = captionStart + (d * k) / SCALE_SEGMENTS;
+    if (t < entranceEnd - 1e-6) out.push(t);
+  }
+  return out;
+}
+
 const clamp01 = (n: number) => (n < 0 ? 0 : n > 1 ? 1 : n);
 const IDENTITY: EntranceFrame = { opacity: 1, scale: 1, dx: 0, dy: 0 };
 
@@ -149,6 +173,7 @@ export function exitAssParts(
   playResY: number,
   base: BaseAlphas = OPAQUE_BASE,
   precision = 0,
+  origin?: { x: number; y: number },
 ): AssMotionParts {
   if (!hasExit(animation.exit)) return inactiveMotionParts(x, y, precision);
   const { exitStart } = animationWindows(captionStart, captionEnd, animation);
@@ -170,6 +195,7 @@ export function exitAssParts(
       y,
       playResY,
       precision,
+      origin,
     }),
     base,
   );

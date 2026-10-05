@@ -98,11 +98,10 @@ New fonts (all SIL OFL, bundled in the offline seed): Caveat, Kalam, Permanent M
 
 ## Known limitations
 
-* **Rounded backgrounds are preview-only.** An ASS box is square; `backgroundRadius` (Sticker, Sticker Pill, Podcast,
-  Reels) renders rounded in the editor and square in the exported MP4. Boxes are drawn per line at the width of that
-  line, so a two-line caption's box is stepped in the export and a single rectangle in the preview.
-* **A scaled active word bulges a boxed caption in the export** (the box follows the tallest run). Boxed presets
-  therefore use colour-only word treatments.
+* **Rounded backgrounds** (P20.4): in geometry mode the export draws a caption's background as one rounded shape, like the
+  preview. Only the legacy renderer (used when a font's metrics are unavailable) still draws ASS's per-line square box.
+* **A scaled active word no longer bulges a boxed caption** (P20.4/P21): the box comes from the layout, not from the
+  tallest run, so boxed presets may use scale word treatments too.
 * **Glow is approximate** — a blurred copy of the glyphs, not CSS's exact gaussian; strength differs slightly.
 * The preset-picker cards show position, alignment, container and the real word treatment, but are static: they do
   not play the entrance/exit (the motion is listed as text under the name).
@@ -212,3 +211,54 @@ holds, so no preset values were changed.
 * Glyph widths are summed advances; the browser also applies kerning, so widths agree to ~1–2% (kerning), not exactly.
 * Outline, shadow and glow thickness are scaled with the same factor as before (not remeasured pixel-for-pixel); the
   glow remains an approximation of CSS's blur.
+
+## Animation QA (P21)
+
+QA of the existing animation system — no new animation types. Inventory (the real current ids):
+
+| Group | Values |
+|---|---|
+| Entrance | none, fade, pop, slide-up, slide-down, slide-left, slide-right, bounce, typewriter ("Word Fade"), word-pop, char-pop — the last three are all the same capped (≤0.15 s) fade in both renderers |
+| Exit | none, fade, slide-up, slide-down, slide-left, slide-right, pop (legacy "slide" = slide-up) |
+| Word | none, highlight, color, scale, bounce, underline, bg-highlight |
+| Controls | Animation panel: entrance, exit, word, duration (0.1/0.2/0.3/0.5/1 s); all captions or this/selected captions |
+
+Entrance and exit are pure functions of time (`entrance-animation.ts`, `exit-animation.ts`) read by both the preview and
+the ASS export, so seeking, replay and repeated captions cannot accumulate state. The preview animates only while
+playing (a paused caption shows its settled state — by design).
+
+**Defects found and fixed**
+
+1. *Scaling animations on multi-line captions (export).* Since P20.4 each line is its own ASS event, and libass scales an
+   event about its own anchor: a 2-line pop/bounce/pop-exit did not scale its line pitch and a corner-anchored caption
+   drifted toward its anchor (up to 4.6% of the frame height). Every anchor is now moved by (scale − 1) × (anchor − block
+   centre), the preview's transform-origin, and a scaling entrance runs one event per piecewise-linear scale segment.
+2. *Scaled active word re-flowed its neighbours (export).* libass lays a line out as one run, so scaling one word moved
+   the others (~20 px at 720p) and re-centred the line; the preview scales in place. A line holding a scaled active word
+   is now emitted per word at layout positions, the active word scaling about its own inline-box centre.
+3. *Previous caption leaked into the next (preview).* Word spans are keyed by index and carry a CSS transition, so a new
+   caption reused the old DOM and animated the previous caption's last highlighted word into its first frames. The overlay
+   is now keyed by caption id.
+
+**Results** (real Electron app, real MP4 exports at 720×1280 and 1080×1920):
+
+* Every entrance, exit, entrance+exit combination, custom position, size, box, font and 24 real presets (2 per family):
+  64/64 cases at each resolution within tolerance — worst case, export vs the shared model: scale 0.06, centre 0.3% of
+  frame height (corner-anchored captions), opacity 0.14; export vs the live preview (±12 ms clock alignment): scale 0.06,
+  centre 0.3%, opacity 0.15.
+* Word animations (scale, bounce, color, underline, bg-highlight, highlight) on 2-line captions with different active
+  words per line, with entrance/exit, box, outline+glow, 3 fonts and 24 real preset typefaces: every comparison within
+  1.2% of the canvas (worst 0.9%; one tracked-caps line 1.4% from kerning, inside 5% of its width).
+* Playback in the real window: per-frame preview opacity/scale match the model to 0.01; pause/resume, seek mid-caption,
+  seek back (entrance replays), rapid caption changes, project start/end all correct. 75 Hz playback, p95 frame 13.7 ms,
+  no frame over 33 ms, no long tasks, no extra network requests.
+
+**Remaining limitations**
+
+* The preview skips entrance/exit while paused or scrubbing (by design); the active-word highlight still shows.
+* Word-level bounce is a two-stage ramp in the export but its position offset is linear (≤ ~1% of frame height for
+  ~70 ms); typewriter / word-pop / char-pop remain approximated fades.
+* A scaled active word eases in over ~0.12 s in the export even for a caption's first word, where the preview (fresh DOM)
+  shows it immediately.
+* The legacy renderer (font metrics unavailable) still scales about each event's anchor.
+* Opacity of real MP4s is estimated from backdrop-difference energy; peak-based estimates are biased by the H.264 encode.

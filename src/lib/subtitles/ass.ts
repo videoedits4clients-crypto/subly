@@ -7,7 +7,7 @@ import type {
 import { applyWordTextCase } from "../../types/subtitle.ts";
 import { detectScript, SCRIPT_FALLBACK_FONTS, scriptFallbackWeight } from "./script-detect.ts";
 import { entranceAssParts, type AssMotionParts, type BaseAlphas } from "./entrance-animation.ts";
-import { animationWindows, exitAssParts, hasExit } from "./exit-animation.ts";
+import { animationWindows, exitAssParts, hasExit, scaleBreakpoints } from "./exit-animation.ts";
 import { hasEntrance } from "./entrance-animation.ts";
 import { groupWordsIntoLines } from "./word-lines.ts";
 import { assCellRatio } from "../fonts/font-metrics.ts";
@@ -742,7 +742,11 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text`
       const layout = layoutCaption(buildLayoutLines(sub.text, visible, style, scale), style, { width: playResX, height: playResY }, fontMetrics);
       if (layout) {
         const windowsGeo = animationWindows(sub.start, sub.end, anim);
-        const geoIntervals = buildIntervals(sub, hasEntrance(anim.entrance) && hasExit(anim.exit) ? [windowsGeo.entranceEnd, windowsGeo.exitStart] : []);
+        const geoIntervals = buildIntervals(sub, [
+          ...(hasEntrance(anim.entrance) && hasExit(anim.exit) ? [windowsGeo.entranceEnd, windowsGeo.exitStart] : []),
+          // each line/box is its own event, so a scaling entrance runs one event per scale segment (see scaleBreakpoints)
+          ...scaleBreakpoints(anim, sub.start, sub.end),
+        ]);
         events.push(...buildGeoCaptionEvents({ sub, style, anim, styleName, layout, intervals: geoIntervals, scale, playResY, fontMetrics }));
         continue;
       }
@@ -868,8 +872,13 @@ function buildGeoCaptionEvents(a: {
     const lineDur = interval.end - interval.start;
     const start = msTime(interval.start);
     const end = msTime(interval.end);
-    const entrance = entranceAssParts(anim, interval.start - sub.start, boxAnchorX, block.top + block.height, playResY, textAlphas, 1);
-    const exit = exitAssParts(anim, sub.start, sub.end, interval.start, interval.end, boxAnchorX, block.top + block.height, playResY, textAlphas, 1);
+    // the caption scales about the centre of its block, as the preview's CSS transform does
+    const origin = { x: block.left + block.width / 2, y: block.top + block.height / 2 };
+    const entrance = entranceAssParts(anim, interval.start - sub.start, boxAnchorX, block.top + block.height, playResY, textAlphas, 1, {
+      origin,
+      eventEndOffsetSec: interval.end - sub.start,
+    });
+    const exit = exitAssParts(anim, sub.start, sub.end, interval.start, interval.end, boxAnchorX, block.top + block.height, playResY, textAlphas, 1, origin);
     const motion: AssMotionParts = entrance.active ? entrance : exit;
     const fadeTag = motion.fadeInMs ? `\\fad(${motion.fadeInMs},0)` : "";
     const wordRampMs = motion.active
@@ -896,18 +905,40 @@ function buildGeoCaptionEvents(a: {
       : [];
     const runs = renderWordRuns(sub, style, anim, interval.activeWordIndex, scale, motion.lineTags, wordRampMs, fallbackFs);
 
-    const lineY = (line: CaptionLayout["lines"][number]) => {
-      let descent = 0;
-      for (const w of line.words) descent = Math.max(descent, w.assDescentPx * (activeScales && w.index === visibleActive ? style.activeWordScale : 1));
-      return line.baseline + descent;
+    const lineY = (line: CaptionLayout["lines"][number]) => line.baseline + Math.max(...line.words.map((w) => w.assDescentPx));
+
+    // One line as ASS events. libass lays a line out as ONE run, so scaling a word inside it re-flows its
+    // neighbours (and re-centres the line) — the preview scales the word in place and nothing moves. A line
+    // holding a scaled active word is therefore emitted as one event per word, each at its layout position;
+    // the active word scales about the centre of its own inline box, as the preview's CSS transform does
+    // (see MotionSpec.origin for the same offset trick), and eases in over the ramp.
+    const emitLine = (layer: 0 | 1, name: string, line: CaptionLayout["lines"][number], parts: string[], tags: string) => {
+      if (!(activeScales && line.words.some((w) => w.index === visibleActive))) {
+        events.push(
+          `Dialogue: ${layer},${start},${end},${name},,0,0,0,,{\\an${an}${motion.positionAt(line.anchorX, lineY(line))}${fadeTag}${tags}}${line.words.map((w) => parts[w.index]).join(" ")}`,
+        );
+        return;
+      }
+      for (const w of line.words) {
+        const ax = (w.left + w.right) / 2;
+        const ay = line.baseline + w.assDescentPx;
+        let pos: string;
+        if (w.index !== visibleActive) pos = motion.positionAt(ax, ay);
+        else {
+          const s = style.activeWordScale;
+          const qx = (w.left + w.boxRight) / 2;
+          const qy = line.baseline - w.runAbove + w.runHeight / 2;
+          const px = qx + s * (ax - qx);
+          const py = qy + s * (ay - qy);
+          const n1 = (n: number) => Number(n.toFixed(1));
+          pos = !motion.active && wordRampMs > 0 ? `\\move(${n1(ax)},${n1(ay)},${n1(px)},${n1(py)},0,${wordRampMs})` : motion.positionAt(px, py);
+        }
+        events.push(`Dialogue: ${layer},${start},${end},${name},,0,0,0,,{\\an2${pos}${fadeTag}${tags}}${parts[w.index]}`);
+      }
     };
 
     if (glow) {
-      for (const line of layout.lines) {
-        events.push(
-          `Dialogue: 0,${start},${end},${styleName}G,,0,0,0,,{\\an${an}${motion.positionAt(line.anchorX, lineY(line))}${fadeTag}${glowTags(1)}}${line.words.map((w) => glowRuns[w.index]).join(" ")}`,
-        );
-      }
+      for (const line of layout.lines) emitLine(0, `${styleName}G`, line, glowRuns, glowTags(1));
     }
 
     // Active-word chip, from the preview's own CSS box: the word's inline box (trailing space included)
@@ -928,11 +959,7 @@ function buildGeoCaptionEvents(a: {
       }
     }
 
-    for (const line of layout.lines) {
-      events.push(
-        `Dialogue: 1,${start},${end},${styleName},,0,0,0,,{\\an${an}${motion.positionAt(line.anchorX, lineY(line))}${fadeTag}${motion.lineTags(1)}}${line.words.map((w) => runs[w.index]).join(" ")}`,
-      );
-    }
+    for (const line of layout.lines) emitLine(1, styleName, line, runs, motion.lineTags(1));
   }
   return events;
 }

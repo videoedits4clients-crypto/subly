@@ -223,12 +223,38 @@ test("the chip hugs the active word's own box: its left edge is 0.15em left of t
   assert.ok(Math.abs(pos(chips[1]).x - (second.left - 15)) < 0.1);
 });
 
-test("a scale-style active word lifts the line anchor by its own enlarged descent", () => {
-  const sub = mkSub("alpha beta", { text: "alpha beta" });
-  const style = { wordHighlight: true, activeWordScale: 1.5, fontSize: 100, textCase: "none" as const };
-  const scaled = pos(dialogues(build(style, { word: "scale" }, sub), 1)[0]).y;
-  const still = pos(dialogues(build(style, { word: "none" }, sub), 1)[0]).y;
-  assert.ok(Math.abs(scaled - still - 0.2 * 100 * 0.5) < 0.1, "extra descent = winDescent × em × (scale − 1)");
+test("a scaled active word is its own event: neighbours stay at their layout positions, nothing re-flows", () => {
+  const sub = mkSub("alpha beta gamma", { text: "alpha beta gamma" });
+  const style = { ...DEFAULT_SUBTITLE_STYLE, fontFamily: "Tight", fontSize: 100, textCase: "none" as const, wordHighlight: true, activeWordScale: 1.5 };
+  const layout = layoutCaption(buildLayoutLines(sub.text, sub.words, style, 1), style, { width: 1080, height: 1920 }, byFamily)!;
+  const doc = build({ wordHighlight: true, activeWordScale: 1.5, fontSize: 100, textCase: "none" }, { word: "scale" }, sub);
+  const ev = dialogues(doc, 1); // first interval: "alpha" is active
+  assert.equal(ev.length, 3, "one event per word on the line holding the scaled word");
+  const line = layout.lines[0];
+  const [alpha, beta, gamma] = line.words;
+  for (const [event, w] of [[ev[1], beta], [ev[2], gamma]] as const) {
+    const p = pos(event);
+    assert.ok(Math.abs(p.x - (w.left + w.right) / 2) < 0.1, "centre of the word's own advance");
+    assert.ok(Math.abs(p.y - (line.baseline + w.assDescentPx)) < 0.1);
+  }
+  // the active word scales about the centre of its inline box: its final anchor is Q + s(A − Q)
+  const m = /\\move\(([-\d.]+),([-\d.]+),([-\d.]+),([-\d.]+),0,(\d+)\)/.exec(ev[0]);
+  assert.ok(m, "the active word eases in with a move");
+  const ax = (alpha.left + alpha.right) / 2;
+  const ay = line.baseline + alpha.assDescentPx;
+  const qx = (alpha.left + alpha.boxRight) / 2;
+  const qy = line.baseline - alpha.runAbove + alpha.runHeight / 2;
+  assert.ok(Math.abs(Number(m![1]) - ax) < 0.1 && Math.abs(Number(m![2]) - ay) < 0.1, "starts at the unscaled anchor");
+  assert.ok(Math.abs(Number(m![3]) - (qx + 1.5 * (ax - qx))) < 0.1 && Math.abs(Number(m![4]) - (qy + 1.5 * (ay - qy))) < 0.1, "ends at Q + s(A − Q)");
+});
+
+test("a line without the scaled word keeps one event; word animations that don't scale keep one event per line", () => {
+  const sub = mkSub("alpha beta gamma delta", { text: "alpha beta\ngamma delta" });
+  const scaled = dialogues(build({ wordHighlight: true, textCase: "none" }, { word: "scale" }, sub), 1);
+  assert.equal(scaled.length, 3, "line 1 split into two words, line 2 intact");
+  for (const word of ["color", "underline", "highlight", "none"] as const) {
+    assert.equal(dialogues(build({ wordHighlight: true, textCase: "none" }, { word }, sub), 1).length, 2, word);
+  }
 });
 
 test("glow styles emit one blurred underlay per line, in their own style, under the text", () => {
@@ -279,7 +305,7 @@ test("12 families, at least 2 presets each, go through geometry mode cleanly", (
       assert.ok(Math.abs(Number(s[FONTSIZE]) - expected) < 0.02, `${preset.id}: Fontsize ${s[FONTSIZE]} vs ${expected.toFixed(2)}`);
       const text = dialogues(doc, 1);
       assert.ok(text.length >= 2, `${preset.id}: the explicit line break is kept`);
-      for (const l of text) assert.match(l, /\\an[123]\\pos\(/, preset.id);
+      for (const l of text) assert.match(l, /\\an[123]\\(pos|move)\(/, preset.id);
       if (preset.style.backgroundOpacity > 0) assert.equal(dialogues(doc, 0).filter((l) => l.includes("\\p1")).length, 1, `${preset.id}: one box`);
     }
   }

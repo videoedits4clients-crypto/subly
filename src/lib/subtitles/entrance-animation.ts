@@ -115,7 +115,7 @@ export function entranceFrameAt(animation: Pick<AnimationConfig, "entrance" | "d
 // ───────────────────────── ASS export ─────────────────────────
 
 /** Piecewise-linear segments used to approximate a scale curve with chained ASS `\t` tags. */
-const SCALE_SEGMENTS = 8;
+export const SCALE_SEGMENTS = 8;
 
 /** ASS alpha bytes (0 = opaque, 255 = transparent) of a style's primary / outline / back colours.
  * Alpha ramps animate FROM/TO these rather than to a flat 0, so a caption with a translucent
@@ -190,6 +190,15 @@ export interface MotionSpec {
   playResY: number;
   /** Decimal places for \pos / \move coordinates (default 0: whole pixels). */
   precision?: number;
+  /**
+   * The point the caption scales about (the centre of its block). libass scales an event about its own
+   * alignment anchor, but the preview scales the whole caption box about its centre — so when this is
+   * set, every anchor is also moved by `(scale − 1) × (anchor − origin)`, which makes each independently
+   * positioned line / box / chip land exactly where a uniform scale of the whole block would put it.
+   * The offset is linear in the scale, so an event must lie within ONE scale segment (the caller splits
+   * its intervals at `SCALE_SEGMENTS` boundaries — see scaleBreakpoints in exit-animation.ts).
+   */
+  origin?: { x: number; y: number };
 }
 
 /**
@@ -207,11 +216,18 @@ export function motionAssParts(spec: MotionSpec): AssMotionParts {
   const f0 = frame(p0);
   const f1 = frame(p1);
 
-  const moves = f0.dx !== f1.dx || f0.dy !== f1.dy;
-  const positionAt = (px: number, py: number) =>
-    moves
-      ? `\\move(${rnd(px + f0.dx * playResY)},${rnd(py + f0.dy * playResY)},${rnd(px + f1.dx * playResY)},${rnd(py + f1.dy * playResY)},${delayMs},${localMs(p1)})`
-      : `\\pos(${rnd(px + f0.dx * playResY)},${rnd(py + f0.dy * playResY)})`;
+  const origin = spec.scales ? spec.origin : undefined;
+  const moves = f0.dx !== f1.dx || f0.dy !== f1.dy || (origin !== undefined && f0.scale !== f1.scale);
+  // where an anchor at (px, py) sits at one end of the event: the slide displacement plus, when the caption
+  // scales about `origin`, the anchor's own displacement from that point
+  const at = (px: number, py: number, f: EntranceFrame) =>
+    [px + f.dx * playResY + (origin ? (f.scale - 1) * (px - origin.x) : 0), py + f.dy * playResY + (origin ? (f.scale - 1) * (py - origin.y) : 0)] as const;
+  const positionAt = (px: number, py: number) => {
+    const [x0, y0] = at(px, py, f0);
+    if (!moves) return `\\pos(${rnd(x0)},${rnd(y0)})`;
+    const [x1, y1] = at(px, py, f1);
+    return `\\move(${rnd(x0)},${rnd(y0)},${rnd(x1)},${rnd(y1)},${delayMs},${localMs(p1)})`;
+  };
 
   // Opacity breakpoints inside this event (piecewise linear, optional knee).
   const stops = [p0];
@@ -284,6 +300,7 @@ export function entranceAssParts(
   playResY: number,
   base: BaseAlphas = OPAQUE_BASE,
   precision = 0,
+  scaleAbout?: { origin: { x: number; y: number }; eventEndOffsetSec: number },
 ): AssMotionParts {
   if (!hasEntrance(animation.entrance)) return inactiveMotionParts(x, y, precision);
   const d = resolveEntranceDurationSec(animation);
@@ -294,7 +311,8 @@ export function entranceAssParts(
     motionAssParts({
       frame: (p) => entranceFrame(animation.entrance, p),
       p0: o / d,
-      p1: 1,
+      // with a scale origin the event is one scale segment (see MotionSpec.origin): it ends where the event ends
+      p1: scaleAbout ? clamp01(scaleAbout.eventEndOffsetSec / d) : 1,
       windowSec: d,
       delaySec: 0,
       opacityKnee: entranceFadeFraction(animation.entrance),
@@ -305,6 +323,7 @@ export function entranceAssParts(
       y,
       playResY,
       precision,
+      origin: scaleAbout?.origin,
     }),
     base,
   );
