@@ -154,10 +154,11 @@ export interface AssMotionParts {
   active: boolean;
 }
 
-export function inactiveMotionParts(x: number, y: number): AssMotionParts {
+export function inactiveMotionParts(x: number, y: number, precision = 0): AssMotionParts {
+  const rnd = (n: number) => (precision === 0 ? Math.round(n) : Number(n.toFixed(precision)));
   return {
     position: `\\pos(${x},${y})`,
-    positionAt: (px, py) => `\\pos(${Math.round(px)},${Math.round(py)})`,
+    positionAt: (px, py) => `\\pos(${rnd(px)},${rnd(py)})`,
     fadeInMs: 0,
     alpha: () => "",
     scale: () => "",
@@ -187,6 +188,8 @@ export interface MotionSpec {
   x: number;
   y: number;
   playResY: number;
+  /** Decimal places for \pos / \move coordinates (default 0: whole pixels). */
+  precision?: number;
 }
 
 /**
@@ -197,6 +200,8 @@ export interface MotionSpec {
  */
 export function motionAssParts(spec: MotionSpec): AssMotionParts {
   const { frame, p0, p1, windowSec, delaySec, x, y, playResY } = spec;
+  const digits = spec.precision ?? 0;
+  const rnd = (n: number) => (digits === 0 ? Math.round(n) : Number(n.toFixed(digits)));
   const delayMs = Math.round(delaySec * 1000);
   const localMs = (p: number) => Math.max(0, Math.round(delayMs + (p - p0) * windowSec * 1000));
   const f0 = frame(p0);
@@ -205,8 +210,8 @@ export function motionAssParts(spec: MotionSpec): AssMotionParts {
   const moves = f0.dx !== f1.dx || f0.dy !== f1.dy;
   const positionAt = (px: number, py: number) =>
     moves
-      ? `\\move(${Math.round(px + f0.dx * playResY)},${Math.round(py + f0.dy * playResY)},${Math.round(px + f1.dx * playResY)},${Math.round(py + f1.dy * playResY)},${delayMs},${localMs(p1)})`
-      : `\\pos(${Math.round(px + f0.dx * playResY)},${Math.round(py + f0.dy * playResY)})`;
+      ? `\\move(${rnd(px + f0.dx * playResY)},${rnd(py + f0.dy * playResY)},${rnd(px + f1.dx * playResY)},${rnd(py + f1.dy * playResY)},${delayMs},${localMs(p1)})`
+      : `\\pos(${rnd(px + f0.dx * playResY)},${rnd(py + f0.dy * playResY)})`;
 
   // Opacity breakpoints inside this event (piecewise linear, optional knee).
   const stops = [p0];
@@ -278,11 +283,12 @@ export function entranceAssParts(
   y: number,
   playResY: number,
   base: BaseAlphas = OPAQUE_BASE,
+  precision = 0,
 ): AssMotionParts {
-  if (!hasEntrance(animation.entrance)) return inactiveMotionParts(x, y);
+  if (!hasEntrance(animation.entrance)) return inactiveMotionParts(x, y, precision);
   const d = resolveEntranceDurationSec(animation);
   const o = Math.max(0, offsetSec);
-  if (o >= d - 1e-6) return inactiveMotionParts(x, y);
+  if (o >= d - 1e-6) return inactiveMotionParts(x, y, precision);
 
   return withBaseAlphas(
     motionAssParts({
@@ -298,6 +304,7 @@ export function entranceAssParts(
       x,
       y,
       playResY,
+      precision,
     }),
     base,
   );

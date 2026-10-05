@@ -132,28 +132,83 @@ Elegant stays close to Mono/Minimal because its font, colour and outline are loc
 Editorial ~ Luxury ~ Magazine (all gold/serif tracked caps), Retro ~ News (small solid bar). All flagship pairs differ
 in ≥ 4 of 14 dimensions.
 
-## Preview vs export text size (open issue found in P20.3 — not fixed)
+## Preview vs export text size (P20.4 — fixed)
 
-The same caption renders **larger in the editor preview than in the exported MP4**, by a font-dependent factor.
-Measured with one single-line caption at fontSize 64 (text width as a fraction of frame width):
+P20.3 found that the same caption rendered **larger in the editor preview than in the exported MP4**, by a font-dependent
+factor. P20.4 proved the cause, fixed it with one font-aware model shared by both renderers, and validated the result
+against real exported MP4s.
 
-| Font | Preview | Export | Preview ÷ Export |
-|---|---|---|---|
-| Inter 800 | 0.573 | 0.403 | 1.42 |
-| Poppins 800 | 0.576 | 0.328 | 1.76 |
-| Anton | 0.393 | 0.226 | 1.74 |
-| Oswald 600 | 0.446 | 0.263 | 1.70 |
-| Archivo 900 | 0.618 | 0.412 | 1.50 |
-| Roboto 700 | 0.524 | 0.436 | 1.20 |
-| DM Sans 700 | 0.553 | 0.419 | 1.32 |
-| Baloo 2 800 | 0.507 | 0.322 | 1.57 |
-| Playfair 700 | 0.568 | 0.407 | 1.40 |
-| Montserrat 800 | 0.625 | 0.403 | 1.55 |
-| Bebas Neue | 0.322 | 0.247 | 1.30 |
-| Caveat 700 | 0.425 | 0.338 | 1.26 |
+### Root cause (confirmed against the font tables and real libass renders)
 
-Likely cause (not yet confirmed in code): the preview's `fontSize` is a CSS *em*, while an ASS `Fontsize` is the font's
-*cell height* (ascent + descent), so libass renders the em at `Fontsize ÷ (ascent+descent)` — different for every font.
-A fix would scale the ASS size per font from its OS/2 metrics, but it also changes how wide every exported caption is
-(wide captions would then overflow the frame, because the export never wraps — `WrapStyle: 2`), so it needs wrapping and
-the active-word-chip width calibration revisited together. See the P20.3 report for the recommended next task.
+* The preview's `fontSize` is a CSS **em**. libass reads an ASS `Fontsize` as the font's **Windows cell height**
+  (`winAscent + winDescent`), so it draws an em of `Fontsize × unitsPerEm ÷ (winAscent + winDescent)`.
+  Every measured preview÷export ratio equals `(winAscent + winDescent) ÷ unitsPerEm` of that font to two decimals.
+* libass also spaces lines by the whole cell (ignoring `lineHeight`) and never wraps (`WrapStyle: 2`), while the
+  browser wraps at the box width and spaces lines by `lineHeight × em`.
+
+### The model
+
+* `lib/fonts/font-metrics.ts` — pure parser/maths: reads `head`, `hhea`, `OS/2`, `hmtx`, `cmap` from the same font file
+  the export hands to libass; `assCellRatio`, `emToAssFontSize`, `cssContentMetrics`, `textAdvance`. No per-font numbers.
+* `lib/subtitles/caption-layout.ts` — pure browser-equivalent layout (wrap, line boxes, alignment, block anchoring) from
+  those metrics. The preview renders exactly its line breaks; the export emits one positioned event per visual line, so
+  libass can never re-wrap or re-space them.
+* `lib/subtitles/ass.ts` "geometry mode" (when a `fontMetrics` provider is supplied, which the export pipeline does):
+  `Fontsize = em × cellRatio`, `an{1,2,3}pos` at layout baselines, the caption background drawn as **one rounded
+  vector shape** (like the preview) instead of libass's per-line box, active-word chips and glow underlays taken from the
+  layout. Without a provider the legacy single-event rendering is unchanged.
+* Metrics are served to the preview by `/api/fonts/metrics` and cached once per font client-side
+  (`client-font-metrics.ts`); the server parses each font file once per process. Nothing is parsed per frame and the
+  preview writes nothing to the store. If a font's metrics are unavailable the preview falls back to the browser's own
+  wrapping and the export to the legacy path.
+
+### Result — preview ÷ export text width (same caption, fontSize 64)
+
+| Font | Before | After |
+|---|---|---|
+| Inter 800 | 1.42 | 1.001 |
+| Poppins 800 | 1.76 | 1.007 |
+| Anton | 1.74 | 1.007 |
+| Oswald 600 | 1.70 | 1.007 |
+| Archivo 900 | 1.50 | 1.000 |
+| Roboto 700 | 1.20 | 1.006 |
+| DM Sans 700 | 1.32 | 1.000 |
+| Baloo 2 800 | 1.57 | 1.006 |
+| Playfair 700 | 1.40 | 0.997 |
+| Montserrat 800 | 1.55 | 0.998 |
+| Bebas Neue | 1.30 | 1.008 |
+| Caveat 700 | 1.26 | 0.984 |
+
+### Geometry validation (preview ink box from the editor DOM vs ink box measured in the exported MP4)
+
+60 fixtures (12 fonts; 1–3 lines, long wrapping text, narrow/wide boxes, left/right/top/bottom/custom position, font size
+40/110, mixed per-word size and spacing, letter spacing, line height 1.5, padding):
+
+| | Cases within 5% (W and H) | Mean |ΔW| | Mean |ΔH| | Worst ΔW |
+|---|---|---|---|---|
+| Before (legacy renderer), 720×1280 | 0 / 60 | 33.5% | 32.4% | +136% (narrow box, wrapping) |
+| After, 720×1280 | 60 / 60 | 0.7% | 0.7% | +2.6% |
+| After, 1080×1920 | 60 / 60 | 0.7% | 0.5% | +2.7% |
+
+Edges (left/right/top/bottom) agree within 0.9% of the canvas in every case.
+
+Real presets (all 49 visible styles, both resolutions; text-only geometry, background boxes and active-word chips
+measured separately): text 48/49 within 5%, boxes 8/8, chips 2/2 (worst chip: −2.1% H). The one exception is Punch
+(−10.5% W) *when exported together with Archivo 900 in the same project* — see limitations.
+
+### P20.3 enlarged styles re-evaluated
+
+P20.3 raised the sizes of Film Title, Minimal Left, Magazine, Luxury, Documentary, News, Cartoon, Karaoke, TikTok, Jump
+Pop, Editorial, Comic, Soft Shadow and Minimal because their *exported* captions looked small. With the export now
+matching the preview those captions render at the size the presets say. All 14 were re-rendered in the real exporter on a
+long caption: none overflows or clips, every one stays legible and clearly distinct, and the 40px legibility floor still
+holds, so no preset values were changed.
+
+### Remaining limitations
+
+* **Archivo vs Archivo Black.** The Archivo 900 instance's full name (nameID 4) is also "Archivo Black". If one project
+  uses both fonts, libass may resolve "Archivo Black" to the Archivo 900 file (visibly narrower glyphs). Exported alone,
+  Punch matches the preview (+1.7% W / −0.7% H). A font-identity issue, not a size-model one.
+* Glyph widths are summed advances; the browser also applies kerning, so widths agree to ~1–2% (kerning), not exactly.
+* Outline, shadow and glow thickness are scaled with the same factor as before (not remeasured pixel-for-pixel); the
+  glow remains an approximation of CSS's blur.

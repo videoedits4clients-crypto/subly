@@ -9,6 +9,9 @@ import { exitFrameAt } from "@/lib/subtitles/exit-animation";
 import { findActiveWordIndex } from "@/lib/subtitles/playback-context";
 import { detectScript, scriptFallbackWeight } from "@/lib/subtitles/script-detect";
 import { groupWordsIntoLines } from "@/lib/subtitles/word-lines";
+import { buildLayoutLines, layoutCaption } from "@/lib/subtitles/caption-layout";
+import { getClientFontMetrics } from "@/lib/fonts/client-font-metrics";
+import { useFontMetricsVersion } from "./use-font-metrics";
 import { cn } from "@/lib/utils";
 
 /** Live browser preview of one subtitle at the current playback time — the counterpart to buildAssDocument for the burned export. */
@@ -18,6 +21,7 @@ export function SubtitleOverlay({
   animation,
   currentTime,
   refHeightPx,
+  canvasWidthPx,
   isPlaying,
 }: {
   subtitle: Subtitle;
@@ -25,6 +29,8 @@ export function SubtitleOverlay({
   animation: AnimationConfig;
   currentTime: number;
   refHeightPx: number;
+  /** Width of the preview canvas in px (with refHeightPx it defines the layout canvas the caption is wrapped in). */
+  canvasWidthPx?: number;
   /** While paused/scrubbed, the entrance/exit animation is skipped and the caption is shown at full
    * opacity — otherwise landing the playhead on a caption's exact start (every click/arrow-key/Tab
    * navigation does this) would freeze it at frame zero of its fade-in, i.e. invisible. Real playback
@@ -40,25 +46,50 @@ export function SubtitleOverlay({
   const words = subtitle.words.filter((w) => !w.removed);
   const activeIndex = style.wordHighlight ? findActiveWordIndex(words, currentTime) : null;
 
-  const lineNodes = groupWordsIntoLines(subtitle.text, words).map((lineWords, li) => (
-    <div key={li}>
-      {lineWords.map(({ word: w, index }, i) => (
-        <span
-          key={index}
-          className="inline-block transition-transform"
-          style={{
-            fontFamily: resolveFontFamilyCss(style.fontFamily, w.text),
-            // script-fallback words in a heavy single-weight display face are bolded (see scriptFallbackWeight)
-            ...(detectScript(w.text) !== "latin" ? { fontWeight: scriptFallbackWeight(style.fontFamily, style.fontWeight) } : {}),
-            ...wordDynamicStyle(style, animation, index === activeIndex, w, refHeightPx),
-          }}
-        >
-          {applyWordTextCase(w.text, style.textCase, index)}
-          {i < lineWords.length - 1 ? " " : ""}
-        </span>
-      ))}
-    </div>
-  ));
+  // The line breaks: the SAME layout the export uses (lib/subtitles/caption-layout.ts), computed from the
+  // font's own advance widths — the preview renders exactly these lines (no browser reflow), and the
+  // export places exactly these lines, so wrapping can never differ between the two. Until the font's
+  // metrics have loaded (or if the server can't supply them) the browser wraps the caption itself.
+  const metricsVersion = useFontMetricsVersion();
+  const layout = useMemo(() => {
+    if (!canvasWidthPx) return null;
+    const visible = subtitle.words.filter((w) => !w.removed);
+    const provider = (family: string, weight: number) =>
+      getClientFontMetrics(family, weight, family === style.fontFamily ? (style.fontSource ?? "bundled") : "bundled");
+    return layoutCaption(
+      buildLayoutLines(subtitle.text, visible, style, refHeightPx / 1920),
+      style,
+      { width: canvasWidthPx, height: refHeightPx },
+      provider,
+    );
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [subtitle.text, subtitle.words, style, refHeightPx, canvasWidthPx, metricsVersion]);
+
+  const renderWord = (w: Word, index: number, trailingSpace: boolean) => (
+    <span
+      key={index}
+      className="inline-block transition-transform"
+      style={{
+        fontFamily: resolveFontFamilyCss(style.fontFamily, w.text),
+        // script-fallback words in a heavy single-weight display face are bolded (see scriptFallbackWeight)
+        ...(detectScript(w.text) !== "latin" ? { fontWeight: scriptFallbackWeight(style.fontFamily, style.fontWeight) } : {}),
+        ...wordDynamicStyle(style, animation, index === activeIndex, w, refHeightPx),
+      }}
+    >
+      {applyWordTextCase(w.text, style.textCase, index)}
+      {trailingSpace ? " " : ""}
+    </span>
+  );
+
+  const lineNodes = layout
+    ? layout.lines.map((line, li) => (
+        <div key={li} style={{ whiteSpace: "pre" }}>
+          {line.words.map((pw, i) => renderWord(words[pw.index], pw.index, i < line.words.length - 1))}
+        </div>
+      ))
+    : groupWordsIntoLines(subtitle.text, words).map((lineWords, li) => (
+        <div key={li}>{lineWords.map(({ word: w, index }, i) => renderWord(w, index, i < lineWords.length - 1))}</div>
+      ));
 
   return (
     <div style={containerStyle}>

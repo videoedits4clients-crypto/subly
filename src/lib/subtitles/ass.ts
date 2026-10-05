@@ -10,6 +10,8 @@ import { entranceAssParts, type AssMotionParts, type BaseAlphas } from "./entran
 import { animationWindows, exitAssParts, hasExit } from "./exit-animation.ts";
 import { hasEntrance } from "./entrance-animation.ts";
 import { groupWordsIntoLines } from "./word-lines.ts";
+import { assCellRatio } from "../fonts/font-metrics.ts";
+import { buildLayoutLines, layoutCaption, type CaptionLayout, type MetricsProvider } from "./caption-layout.ts";
 import { resolveEffectiveWordStyleValue } from "./word-style-capabilities.ts";
 
 /**
@@ -107,8 +109,8 @@ export function isGlowStyle(style: SubtitleStyle): boolean {
 
 /** The underlay Style line for a glow caption: same font/size/spacing/alignment as the text style,
  * but filled in the shadow colour (at the shadow's opacity), with no outline and no shadow. */
-function buildGlowStyleLine(name: string, glowName: string, style: SubtitleStyle, effectiveFontFamily: string, scale: number): string {
-  const fields = buildStyleLine(name, { ...style, shadowEnabled: false, outlineEnabled: false }, effectiveFontFamily, scale).split(",");
+function buildGlowStyleLine(name: string, glowName: string, style: SubtitleStyle, effectiveFontFamily: string, scale: number, cellRatio?: number): string {
+  const fields = buildStyleLine(name, { ...style, shadowEnabled: false, outlineEnabled: false }, effectiveFontFamily, scale, cellRatio).split(",");
   const glow = assColorWithAlpha(style.shadowColor, style.shadowOpacity);
   fields[0] = `Style: ${glowName}`;
   fields[3] = glow; // PrimaryColour
@@ -119,17 +121,25 @@ function buildGlowStyleLine(name: string, glowName: string, style: SubtitleStyle
   return fields.join(",");
 }
 
-/** Builds one [V4+ Styles] line for a resolved SubtitleStyle + effective font, at a given render scale. */
-function buildStyleLine(name: string, style: SubtitleStyle, effectiveFontFamily: string, scale: number): string {
-  const fontSize = Math.round(style.fontSize * scale);
-  const spacing = Math.round(style.letterSpacing * scale);
+/**
+ * Builds one [V4+ Styles] line for a resolved SubtitleStyle + effective font, at a given render scale.
+ *
+ * `cellRatio` switches on the P20.4 geometry mode (see font-metrics.ts): the style's logical size is an
+ * EM, and ASS `Fontsize` is the font's Windows cell height, so Fontsize = em × (winAscent + winDescent) /
+ * unitsPerEm. In that mode the caption's background is drawn as its own shape (rounded, one rectangle for
+ * the whole block) instead of an ASS BorderStyle-3 box, and the text outline is exactly the style's.
+ */
+function buildStyleLine(name: string, style: SubtitleStyle, effectiveFontFamily: string, scale: number, cellRatio?: number): string {
+  const geo = cellRatio !== undefined;
+  const fontSize = geo ? Number((style.fontSize * scale * cellRatio).toFixed(2)) : Math.round(style.fontSize * scale);
+  const spacing = geo ? Number((style.letterSpacing * scale).toFixed(2)) : Math.round(style.letterSpacing * scale);
   const outlineW = style.outlineEnabled ? Math.max(1, Math.round(style.outlineWidth * scale)) : 0;
   const shadowDist = style.shadowEnabled && !isGlowStyle(style)
     ? Math.max(1, Math.round(((style.shadowBlur + Math.abs(style.shadowOffsetX) + Math.abs(style.shadowOffsetY)) / 3) * scale))
     : 0;
 
   const primary = assColorWithAlpha(style.color, style.opacity);
-  const hasBox = style.backgroundOpacity > 0;
+  const hasBox = !geo && style.backgroundOpacity > 0;
   // BorderStyle 3 (opaque box): libass draws the BOX in OutlineColour and the box's offset shadow
   // in BackColour. The box colour used to be put in BackColour (and the text outline colour in
   // OutlineColour), so every non-black background rendered as a BLACK box with a thin sliver of
@@ -146,7 +156,9 @@ function buildStyleLine(name: string, style: SubtitleStyle, effectiveFontFamily:
   const borderStyle = hasBox ? 3 : 1;
   const outlineValue = hasBox
     ? Math.max(2, Math.round(((style.backgroundPaddingX + style.backgroundPaddingY) / 2) * scale))
-    : outlineW || 1;
+    : geo
+      ? outlineW // exactly the style's outline — none when it is disabled
+      : outlineW || 1;
 
   const alignment = assAlignment(style.align, style.vAlign);
   const marginV = Math.round((Math.abs(50 - style.y) / 100) * REFERENCE_HEIGHT * scale) + 20;
@@ -499,7 +511,35 @@ function renderLineText(
   wordRampMs = 0,
 ): string {
   const words = sub.words.filter((w) => !w.removed);
-  const rendered = words.map((w, wordIndex) => {
+  const rendered = renderWordRuns(sub, style, anim, activeWordIndex, scale, entranceLineTags, wordRampMs);
+  // Preserve original line breaks by re-wrapping using the subtitle's stored
+  // text line lengths proportionally — simplest robust approach: reuse the
+  // already-computed \n positions from sub.text by matching word counts.
+  return joinWithOriginalLineBreaks(
+    sub.text,
+    rendered,
+    words.map((w) => w.text),
+    "\\N",
+  );
+}
+
+/**
+ * One ASS text run per VISIBLE word (override blocks included), index-aligned with the caption's non-removed
+ * words. `fallbackFontSize` (geometry mode) returns the `\fs` a script-fallback word needs so its em matches the
+ * caption's — a fallback face has its own Windows cell, so the style's Fontsize would size it wrongly.
+ */
+function renderWordRuns(
+  sub: Subtitle,
+  style: SubtitleStyle,
+  anim: AnimationConfig,
+  activeWordIndex: number | null,
+  scale: number,
+  entranceLineTags: (mult: number) => string = () => "",
+  wordRampMs = 0,
+  fallbackFontSize?: (family: string, bold: boolean) => number | undefined,
+): string[] {
+  const words = sub.words.filter((w) => !w.removed);
+  return words.map((w, wordIndex) => {
     const text = applyWordTextCase(w.text, style.textCase, wordIndex);
     const isActive = style.wordHighlight && sub.words.indexOf(w) === activeWordIndex;
     const scalesWhenActive = isActive && (anim.word === "scale" || anim.word === "bounce");
@@ -528,7 +568,9 @@ function renderLineText(
     // A script-fallback word (Devanagari/Gujarati) in a heavy single-weight display face is bolded, so it
     // doesn't render hairline next to the Latin capitals (see scriptFallbackWeight).
     const fallbackBold = wordFont !== style.fontFamily && style.fontWeight < 700 && scriptFallbackWeight(style.fontFamily, style.fontWeight) >= 700 ? "\\b1" : "";
-    const fontOv = wordFont === style.fontFamily ? "" : `\\fn${wordFont}${fallbackBold}`;
+    const isFallback = wordFont !== style.fontFamily;
+    const fallbackFs = isFallback ? fallbackFontSize?.(wordFont, style.fontWeight >= 700 || fallbackBold !== "") : undefined;
+    const fontOv = isFallback ? `\\fn${wordFont}${fallbackBold}${fallbackFs !== undefined ? `\\fs${Number(fallbackFs.toFixed(2))}` : ""}` : "";
     if (activeOv || manualOv || fontOv || (entranceOv && ownScale !== 1)) {
       // Font override goes first so a highlight/manual color still applies on
       // top of it; manual overrides are last so a word's own explicit style
@@ -540,15 +582,6 @@ function renderLineText(
     }
     return escapeAssText(text);
   });
-  // Preserve original line breaks by re-wrapping using the subtitle's stored
-  // text line lengths proportionally — simplest robust approach: reuse the
-  // already-computed \n positions from sub.text by matching word counts.
-  return joinWithOriginalLineBreaks(
-    sub.text,
-    rendered,
-    words.map((w) => w.text),
-    "\\N",
-  );
 }
 
 /**
@@ -621,10 +654,20 @@ export interface AssBuildOptions {
    * itself has no opinion on where these numbers come from. */
   playResX: number;
   playResY: number;
+  /**
+   * Font metrics provider (P20.4). When it can supply a style's font, that style is rendered in GEOMETRY
+   * MODE: ASS Fontsize is converted from the logical em with the font's own Windows cell
+   * (see lib/fonts/font-metrics.ts), and each caption is emitted as one event PER LINE at the baseline
+   * positions of the shared preview layout (lib/subtitles/caption-layout.ts) — same line breaks, same
+   * lineHeight, same box — with the background and active-word chip drawn as shapes. Without metrics
+   * (tests, tools) the legacy single-event rendering is used unchanged.
+   */
+  fontMetrics?: MetricsProvider;
 }
 
-export function buildAssDocument({ subtitles, globalStyle, globalAnimation, playResX, playResY }: AssBuildOptions): string {
+export function buildAssDocument({ subtitles, globalStyle, globalAnimation, playResX, playResY, fontMetrics }: AssBuildOptions): string {
   const scale = playResY / REFERENCE_HEIGHT;
+  const geoStyleNames = new Set<string>();
 
   // Dedup: many captions typically share the exact same resolved style, so we
   // only ever emit as many [V4+ Styles] lines as there are DISTINCT looks.
@@ -638,14 +681,17 @@ export function buildAssDocument({ subtitles, globalStyle, globalAnimation, play
     // caption gets per-word `\fn` overrides in renderLineText instead, so a
     // single caption can freely mix scripts without the whole line being
     // forced onto whichever script's regex happened to match first.
-    const signature = JSON.stringify(resolved);
+    const baseMetrics = fontMetrics?.(resolved.fontFamily, resolved.fontWeight);
+    const cellRatio = baseMetrics ? assCellRatio(baseMetrics) : undefined;
+    const signature = JSON.stringify(resolved) + (cellRatio !== undefined ? "|geo" : "");
 
     let name = styleNameBySignature.get(signature);
     if (!name) {
       name = `S${styleNameBySignature.size}`;
       styleNameBySignature.set(signature, name);
-      styleLines.push(buildStyleLine(name, resolved, resolved.fontFamily, scale));
-      if (isGlowStyle(resolved)) styleLines.push(buildGlowStyleLine(name, `${name}G`, resolved, resolved.fontFamily, scale));
+      styleLines.push(buildStyleLine(name, resolved, resolved.fontFamily, scale, cellRatio));
+      if (isGlowStyle(resolved)) styleLines.push(buildGlowStyleLine(name, `${name}G`, resolved, resolved.fontFamily, scale, cellRatio));
+      if (cellRatio !== undefined) geoStyleNames.add(name);
     }
     styleNameBySubtitleId.set(sub.id, name);
   }
@@ -690,6 +736,17 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text`
     const styleName = styleNameBySubtitleId.get(sub.id) ?? "S0";
     const x = Math.round((style.x / 100) * playResX);
     const y = Math.round((style.y / 100) * playResY);
+
+    if (fontMetrics && geoStyleNames.has(styleName)) {
+      const visible = sub.words.filter((w) => !w.removed);
+      const layout = layoutCaption(buildLayoutLines(sub.text, visible, style, scale), style, { width: playResX, height: playResY }, fontMetrics);
+      if (layout) {
+        const windowsGeo = animationWindows(sub.start, sub.end, anim);
+        const geoIntervals = buildIntervals(sub, hasEntrance(anim.entrance) && hasExit(anim.exit) ? [windowsGeo.entranceEnd, windowsGeo.exitStart] : []);
+        events.push(...buildGeoCaptionEvents({ sub, style, anim, styleName, layout, intervals: geoIntervals, scale, playResY, fontMetrics }));
+        continue;
+      }
+    }
 
     const windows = animationWindows(sub.start, sub.end, anim);
     // Only a caption with BOTH an entrance and an exit needs the split: an event that straddles
@@ -762,6 +819,122 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text`
   }
 
   return `${header}\n${events.join("\n")}\n`;
+}
+
+const hex2 = (n: number) => Math.max(0, Math.min(255, Math.round(n))).toString(16).toUpperCase().padStart(2, "0");
+
+/** The alpha-free `&HBBGGRR&` colour for a `\1c` tag (alpha goes in a separate `\1a`). */
+function assRgb(hex: string): string {
+  return assColorWithAlpha(hex, 1);
+}
+
+/**
+ * Geometry-mode events for one caption (P20.4): one Dialogue per LINE of the shared preview layout, per
+ * word-boundary interval, anchored by BASELINE (`pos y = baseline + the line's largest descent`, which is how
+ * libass's bottom anchor works), plus the background box and the active-word chip drawn as shapes at the
+ * layout's coordinates. Everything the legacy path animates (entrance/exit motion, fades, scale, glow
+ * underlay, per-word overrides) goes through the same helpers.
+ */
+function buildGeoCaptionEvents(a: {
+  sub: Subtitle;
+  style: SubtitleStyle;
+  anim: AnimationConfig;
+  styleName: string;
+  layout: CaptionLayout;
+  intervals: Interval[];
+  scale: number;
+  playResY: number;
+  fontMetrics: MetricsProvider;
+}): string[] {
+  const { sub, style, anim, styleName, layout, intervals, scale, playResY, fontMetrics } = a;
+  const events: string[] = [];
+  const visible = sub.words.filter((w) => !w.removed);
+  const an = style.align === "left" ? 1 : style.align === "right" ? 3 : 2;
+  const baseEm = style.fontSize * scale;
+  const textAlphas = baseAlphas({ ...style, backgroundOpacity: 0 });
+  const glow = isGlowStyle(style);
+  const glowAlphas: BaseAlphas = { a1: Math.round((1 - clamp01(style.shadowOpacity)) * 255), a3: 255, a4: 255 };
+  const glowBlur = Math.max(1, Math.round(style.shadowBlur * scale * 0.5 * 10) / 10);
+  const hasBox = style.backgroundOpacity > 0;
+  const boxAlpha = Math.round((1 - clamp01(style.backgroundOpacity)) * 255);
+  const fallbackFs = (family: string, bold: boolean) => {
+    const m = fontMetrics(family, bold ? 700 : 400);
+    return m ? baseEm * assCellRatio(m) : undefined;
+  };
+  const block = layout.block;
+  const boxAnchorX = style.align === "left" ? block.left : style.align === "right" ? block.left + block.width : block.left + block.width / 2;
+
+  for (const interval of intervals) {
+    const lineDur = interval.end - interval.start;
+    const start = msTime(interval.start);
+    const end = msTime(interval.end);
+    const entrance = entranceAssParts(anim, interval.start - sub.start, boxAnchorX, block.top + block.height, playResY, textAlphas, 1);
+    const exit = exitAssParts(anim, sub.start, sub.end, interval.start, interval.end, boxAnchorX, block.top + block.height, playResY, textAlphas, 1);
+    const motion: AssMotionParts = entrance.active ? entrance : exit;
+    const fadeTag = motion.fadeInMs ? `\\fad(${motion.fadeInMs},0)` : "";
+    const wordRampMs = motion.active
+      ? 0
+      : Math.min(Math.round(lineDur * 1000), Math.round(Math.max(0.05, clamp01v(anim.durationSec) * 0.6) * 1000));
+
+    const activeAbs = interval.activeWordIndex;
+    const visibleActive = activeAbs === null ? -1 : visible.indexOf(sub.words[activeAbs]);
+    const activeScales =
+      style.wordHighlight && visibleActive >= 0 && (anim.word === "scale" || anim.word === "bounce") && !visible[visibleActive].style?.fontSize;
+
+    // Background box: ONE rounded rectangle for the whole block (the preview paints one), not ASS's per-line box.
+    if (hasBox) {
+      const radius = style.backgroundRadius * layout.scale;
+      events.push(
+        `Dialogue: 0,${start},${end},${styleName},,0,0,0,,{\\an${an}${motion.positionAt(boxAnchorX, block.top + block.height)}${fadeTag}\\1c${assRgb(style.backgroundColor)}\\1a&H${hex2(boxAlpha)}&${motion.alpha({ a1: boxAlpha, a3: 255, a4: 255 })}${motion.scale(1)}\\bord0\\shad0\\p1}${roundedRectPath(block.width, block.height, radius)}{\\p0}`,
+      );
+    }
+
+    // Glow underlay (see isGlowStyle): one blurred flat-colour copy of each line, under the crisp text.
+    const glowTags = (mult: number) => motion.alpha(glowAlphas) + motion.scale(mult) + `\\blur${glowBlur}`;
+    const glowRuns = glow
+      ? renderWordRuns(sub, style, anim, interval.activeWordIndex, scale, glowTags, wordRampMs, fallbackFs).map((r) => r.replace(/\\c&H[0-9A-Fa-f]{6,8}&/g, ""))
+      : [];
+    const runs = renderWordRuns(sub, style, anim, interval.activeWordIndex, scale, motion.lineTags, wordRampMs, fallbackFs);
+
+    const lineY = (line: CaptionLayout["lines"][number]) => {
+      let descent = 0;
+      for (const w of line.words) descent = Math.max(descent, w.assDescentPx * (activeScales && w.index === visibleActive ? style.activeWordScale : 1));
+      return line.baseline + descent;
+    };
+
+    if (glow) {
+      for (const line of layout.lines) {
+        events.push(
+          `Dialogue: 0,${start},${end},${styleName}G,,0,0,0,,{\\an${an}${motion.positionAt(line.anchorX, lineY(line))}${fadeTag}${glowTags(1)}}${line.words.map((w) => glowRuns[w.index]).join(" ")}`,
+        );
+      }
+    }
+
+    // Active-word chip, from the preview's own CSS box: the word's inline box (trailing space included)
+    // plus a 0.15em ring, rounded 0.25em.
+    if (anim.word === "bg-highlight" && style.wordHighlight && visibleActive >= 0) {
+      for (const line of layout.lines) {
+        const pw = line.words.find((w) => w.index === visibleActive);
+        if (!pw) continue;
+        const ring = 0.15 * pw.emPx;
+        const left = pw.left - ring;
+        const top = line.baseline - pw.runAbove - ring;
+        const width = pw.boxRight - pw.left + 2 * ring;
+        const height = pw.runHeight + 2 * ring;
+        const chipAlpha = textAlphas.a1;
+        events.push(
+          `Dialogue: 0,${start},${end},${styleName},,0,0,0,,{\\an7${motion.positionAt(left, top)}${fadeTag}\\1c${assRgb(style.highlightColor)}\\1a&H${hex2(chipAlpha)}&${motion.alpha({ a1: chipAlpha, a3: 255, a4: 255 })}\\bord0\\shad0\\p1}${roundedRectPath(width, height, 0.25 * pw.emPx)}{\\p0}`,
+        );
+      }
+    }
+
+    for (const line of layout.lines) {
+      events.push(
+        `Dialogue: 1,${start},${end},${styleName},,0,0,0,,{\\an${an}${motion.positionAt(line.anchorX, lineY(line))}${fadeTag}${motion.lineTags(1)}}${line.words.map((w) => runs[w.index]).join(" ")}`,
+      );
+    }
+  }
+  return events;
 }
 
 /** Escapes a filesystem path for use inside an ffmpeg `subtitles=` filter argument on any OS. */

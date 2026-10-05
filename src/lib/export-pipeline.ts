@@ -4,6 +4,8 @@ import { prisma } from "@/lib/db";
 import { getStorage } from "@/lib/storage";
 import { renderExport, computeExportDimensions, withTempFile, ExportCancelledError, ExportStalledError } from "@/lib/ffmpeg";
 import { buildAssDocument, collectRequiredFonts } from "@/lib/subtitles/ass";
+import { loadExportFontMetrics } from "@/lib/fonts/export-font-metrics";
+import { codePointsOf } from "@/lib/fonts/font-metrics";
 import { prepareExportFontsDir } from "@/lib/fonts/system-font-export";
 import { preflightExportFonts } from "@/lib/fonts/font-preflight";
 import { FontResolutionError } from "@/lib/fonts/font-preflight-message";
@@ -92,14 +94,6 @@ export async function runExportJob(jobId: string, options: RunExportJobOptions =
       job.resolution as "720p" | "1080p" | "4k",
     );
 
-    const ass = buildAssDocument({
-      subtitles: exportSubtitles,
-      globalStyle: data.globalStyle,
-      globalAnimation: data.animation,
-      playResX,
-      playResY,
-    });
-
     // Real font FILES, not just family names — see server-font-cache.ts (bundled fonts)
     // and system-fonts.ts (Windows fonts) for why this matters: neither kind is
     // installed as a system font on ffmpeg's own search path by default (bundled fonts
@@ -127,6 +121,23 @@ export async function runExportJob(jobId: string, options: RunExportJobOptions =
     activeExports.set(jobId, controller);
 
     try {
+      // Font metrics for typography parity (P20.4): the preview sets the style's size as a CSS em, while ASS
+      // reads Fontsize as the font's Windows cell height — so the export needs each font's own metrics (read
+      // from the very files handed to libass) to size, wrap and place the text like the preview does. Built
+      // AFTER the fonts are resolved; a font that can't be read just keeps the legacy rendering.
+      const fontMetrics = await loadExportFontMetrics(
+        requiredFonts,
+        exportSubtitles.flatMap((sub) => sub.words.flatMap((w) => [w.text, w.text.toUpperCase(), w.text.toLowerCase()].flatMap(codePointsOf))),
+      );
+      const ass = buildAssDocument({
+        subtitles: exportSubtitles,
+        globalStyle: data.globalStyle,
+        globalAnimation: data.animation,
+        playResX,
+        playResY,
+        fontMetrics,
+      });
+
       const inputPath = await storage.getPath(project.video.url.replace(/^\/api\/files\//, ""));
       const assKey = exportAssKey(job.projectId, jobId);
       const assAbsPath = await storage.getPath(assKey);

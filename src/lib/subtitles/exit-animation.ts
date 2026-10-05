@@ -148,11 +148,12 @@ export function exitAssParts(
   y: number,
   playResY: number,
   base: BaseAlphas = OPAQUE_BASE,
+  precision = 0,
 ): AssMotionParts {
-  if (!hasExit(animation.exit)) return inactiveMotionParts(x, y);
+  if (!hasExit(animation.exit)) return inactiveMotionParts(x, y, precision);
   const { exitStart } = animationWindows(captionStart, captionEnd, animation);
   const length = captionEnd - exitStart;
-  if (length <= 1e-6 || eventEnd <= exitStart + 1e-6 || eventStart >= captionEnd - 1e-6) return inactiveMotionParts(x, y);
+  if (length <= 1e-6 || eventEnd <= exitStart + 1e-6 || eventStart >= captionEnd - 1e-6) return inactiveMotionParts(x, y, precision);
 
   return withBaseAlphas(
     motionAssParts({
@@ -168,6 +169,7 @@ export function exitAssParts(
       x,
       y,
       playResY,
+      precision,
     }),
     base,
   );
