@@ -5,6 +5,7 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { StylePanel } from "./style-panel";
 import { AnimationPanel } from "./animation-panel";
 import { PresetsPanel } from "./presets-panel";
+import { TemplatesPanel } from "./templates-panel";
 
 /** `forceTab` lets the mobile tab bar jump straight to Style or Animation (e.g. tapping "Animate" should open that tab, not whichever the user last had open). Desktop ignores it and manages its own tab state. */
 export function RightPanel({ forceTab }: { forceTab?: "style" | "animation" }) {
@@ -26,6 +27,9 @@ export function RightPanel({ forceTab }: { forceTab?: "style" | "animation" }) {
             <TabsTrigger value="animation" className="flex-1">
               Animation
             </TabsTrigger>
+            <TabsTrigger value="templates" className="flex-1">
+              Templates
+            </TabsTrigger>
             <TabsTrigger value="presets" className="flex-1">
               Presets
             </TabsTrigger>
@@ -36,6 +40,9 @@ export function RightPanel({ forceTab }: { forceTab?: "style" | "animation" }) {
         </TabsContent>
         <TabsContent value="animation" className="min-h-0 flex-1 overflow-hidden">
           <AnimationPanel />
+        </TabsContent>
+        <TabsContent value="templates" className="min-h-0 flex-1 overflow-hidden">
+          <TemplatesPanel />
         </TabsContent>
         <TabsContent value="presets" className="min-h-0 flex-1 overflow-hidden">
           <PresetsPanel />

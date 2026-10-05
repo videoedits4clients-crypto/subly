@@ -37,7 +37,7 @@ const filterLabel = (f: FamilyFilter) => (f === "All" || f === MY_STYLES_FILTER 
 
 /** "Pop in · Fade out · Scale" — what the preset's motion actually is, read from its real
  * AnimationConfig (the same option lists the Animation tab uses), not a hand-written caption. */
-function describeMotion(animation: AnimationConfig): string {
+export function describeMotion(animation: AnimationConfig): string {
   const label = <T extends string>(list: { value: T; label: string }[], v: T) => list.find((o) => o.value === v)?.label ?? v;
   const parts: string[] = [];
   if (animation.entrance !== "none") parts.push(`${label(ENTRANCE, animation.entrance)} in`);
@@ -59,7 +59,7 @@ const SAMPLE_WORDS = ["This", "is", "amazing"];
  * thing. The middle word of the 3-word sample always stands in for "the word currently being
  * spoken" so every style with word emphasis shows it at a glance, exactly like the task's own
  * "JUST LIKE THIS"-style card brief asks for. */
-function PresetPreview({ style, animation }: { style: SubtitleStyle; animation: AnimationConfig }) {
+export function PresetPreview({ style, animation }: { style: SubtitleStyle; animation: AnimationConfig }) {
   const textCss = styleToTextCss(style, 260, SAMPLE_WORDS.join(" "));
   const activeCss = style.wordHighlight ? activeWordCss(style, animation) : undefined;
   // The caption sits where the preset really puts it: the same styleToContainerCss the live preview

@@ -262,3 +262,79 @@ playing (a paused caption shows its settled state — by design).
   shows it immediately.
 * The legacy renderer (font metrics unavailable) still scales about each event's anchor.
 * Opacity of real MP4s is estimated from backdrop-difference energy; peak-based estimates are biased by the H.264 encode.
+
+## Caption templates (P22)
+
+The **Templates** tab (right panel, between Animation and Presets) offers 16 curated, complete caption treatments —
+typography, container, position, emphasis and motion — that apply to the selected captions or the whole project in one
+click and undo in one step. A template is **not** a new kind of style:
+
+```
+resolveTemplate(t) = { style:     { ...preset(t.base).style,     ...t.style },      // an ordinary SubtitleStyle
+                       animation: { ...preset(t.base).animation, ...t.animation } } // an ordinary AnimationConfig
+```
+
+`t.base` is one of the 49 visible built-in presets (typography, position, container); `t.style` may override only the
+emphasis fields (`wordHighlight`, `highlightColor`, `activeWordScale`); `t.animation` is the template's complete motion
+recipe (entrance, exit, word treatment, duration). Because it resolves to plain style + animation, the live preview, the ASS
+export, the Style / Animation panels, autosave and undo all treat the result like hand-tuned settings — there is no
+template renderer, and the typography (P20.4) and animation (P21) pipelines are unchanged. Code: `src/lib/caption-templates.ts`
+(pure), store action `applyTemplate`, UI `src/components/editor/templates-panel.tsx`.
+
+**Built-in only.** Templates are code, so nothing about them is persisted; only their *effect* (ordinary per-caption /
+project style and animation) is stored in the project like any other style change, and so survives refresh, reopen and
+restart. User-saved styles keep their own mechanism (Presets tab → My Styles). The dashboard's "Templates" page (starter
+projects with an aspect ratio) is a separate, older feature.
+
+**Families.** A template's family is its base preset's family, from the existing 12-family taxonomy; the filter chips are
+those families that have a template (11 of 12 — Neon has none). "Social" content maps to the Sticker family, "News" to
+Documentary.
+
+| Template | Family | Base | Motion | Why it exists |
+|---|---|---|---|---|
+| Creator Punch | Bold Creator | `mrbeast` | bounce in · bounce | The loud, high-energy short-form look. Lower-third placement and a bouncing entrance; the one to pick for hype and commentary. |
+| Creator Bold | Bold Creator | `bold` | pop in · scale | Hook lines and statements that should own the screen. Centre-frame rather than lower-third, with a pop-in and a scale emphasis. |
+| Karaoke Focus | Karaoke | `word-focus` | fade in · color | Readable long captions where the viewer's eye should follow along without anything moving. Colour-only emphasis, a soft fade between captions. |
+| Karaoke Pop | Karaoke | `highlight` | pop in · bg-highlight | Sing-along and tutorial captions where the active word needs a strong, boxed marker. The chip (not colour or scale) is its signature. |
+| Podcast Clean | Podcast | `podcast` | slide-up in · fade out · color | Long-form talking-head video: highly readable, left-aligned like a broadcast lower third, sliding up and fading out so it never distracts. |
+| Podcast Highlight | Podcast | `youtube` | fade in · fade out · bg-highlight | Clips lifted from podcasts for social: centred and bar-backed like a video caption, with the spoken word boxed so it reads at phone size. |
+| Cinematic Title | Cinematic | `film-title` | slide-up in · fade out | Trailers, teasers and title cards: spaced capitals that rise slowly (0.6 s) and fade out. A statement, not a transcript. |
+| Cinematic Minimal | Cinematic | `cinematic` | fade in · fade out | Film-style dialogue subtitles: understated serif type with a quiet fade, for footage that should stay in front. |
+| Social Pop | Sticker | `sticker` | pop in | Friendly, lifestyle and explainer posts: a solid sticker behind the text keeps it legible on any footage. No word emphasis — the chip is the style. |
+| Social Bounce | Sticker | `candy-pop` | bounce in · scale | Playful, youthful content without a box: outlined candy colours and a bouncing entrance plus a scale on the spoken word. |
+| Editorial Serif | Editorial | `editorial` | fade in · fade out | Essays, interviews and brand films: serif type placed like a magazine caption, fading gently in and out. |
+| News Bar | Documentary | `news` | slide-left in | News, updates and announcements: a broadcast-style solid bar across the lower frame that reads as 'information'. |
+| Meme Impact | Meme | `meme-impact` | pop in | Classic top-text memes and reaction clips: the biggest type in the library, hard-edged, popping in instantly. |
+| Comic Burst | Comic | `comic` | word-pop in · scale | Cartoon-style comedy and kids' content: comic-book lettering placed high in the frame with a springy word-by-word burst — the playful alternative to the meme caption. |
+| Handwritten Marker | Handwritten | `handwritten-marker` | slide-right in · fade out · bounce | Notes, doodle-style explainers and personal vlogs: organic, off-centre lettering that feels drawn rather than typeset. |
+| Minimal Clean | Minimal | `minimal` | static | When the footage is the star: the quietest template — small, still, no emphasis, no motion beyond appearing. |
+
+**Distinctness.** Every pair of templates differs in at least 5 of the 14 perceptual dimensions of `lib/preset-audit.ts`
+(font, weight, size, case, colour, outline, shadow, background, position, spacing, entrance, exit, word, highlight — colours
+and sizes are bucketed, so "58 px vs 60 px" or a slightly different colour never counts); no two share a base preset. The
+test suite enforces ≥ 4 for every pair and ≥ 5 within a family.
+
+**Apply semantics**
+
+* *This caption / N selected* — each chosen caption receives the template's complete style and animation as its own override.
+  Other captions and the project defaults are untouched.
+* *All captions* — the project style and animation become the template and every caption's own style/animation override is
+  cleared, so afterwards every caption really looks like the template (a caption with a custom position or font loses it —
+  Undo brings it back). "Reset changes" in the Presets tab then refers to the template.
+* Only style and animation change. Caption text, timing, word timestamps, order, ids, per-word manual styling (colour, size…)
+  and every other project setting are preserved (tests assert object identity for the word arrays).
+* One application = one undo step, whatever the number of captions; re-applying what is already applied changes nothing and
+  adds no history entry. The active template is recognised by comparing the target caption's effective style + animation, so
+  the "applied" ring disappears as soon as you tweak anything.
+
+**Picker previews.** Cards reuse the Presets tab's real-CSS preview (the same CSS as the live preview: font, case, outline,
+glow, container, position, active-word treatment). They are still images — the picker says so — and the motion is listed in
+words under each name; it plays in the editor preview as soon as the template is applied.
+
+**Known limitations**
+
+* Applying to selected captions writes the full style as a per-caption override, so later edits in the Style tab's
+  "All captions" scope do not affect those captions (use "This caption" or re-apply).
+* Templates reuse existing presets, so they inherit those presets' limitations (e.g. the Archivo / Archivo Black font-name
+  collision when both are used in one export; typewriter / word-pop / char-pop are approximated fades).
+* There are no user-defined templates; a custom look is saved as a preset instead.

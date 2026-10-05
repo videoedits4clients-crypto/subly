@@ -13,6 +13,7 @@ import type {
 } from "../types/subtitle.ts";
 import { breakIntoLines } from "../lib/subtitles/linebreak.ts";
 import { copyStyleToClipboard, readStyleClipboard } from "../lib/style-clipboard.ts";
+import { applyTemplateToSnapshot, countTemplateTargets, type ResolvedTemplate, type TemplateTarget } from "../lib/caption-templates.ts";
 import { normalizeCuts } from "../lib/timeline/edit-model.ts";
 import {
   generateHinglishForSubtitle,
@@ -541,6 +542,14 @@ interface EditorState {
   setComposition: (patch: Partial<CompositionSettings>) => void;
   replaceAllSubtitles: (subtitles: Subtitle[]) => void;
   applyPreset: (style: SubtitleStyle, animation: AnimationConfig) => void;
+  /**
+   * Applies a resolved caption template (P22, lib/caption-templates.ts) to specific captions or to all of them as
+   * ONE history step (one commit — undo restores every affected caption at once). Only style/animation change; text,
+   * timing, words, order and everything else are untouched. Returns how many captions were restyled; 0 means nothing
+   * changed (no targets, or they already match) and no history step was created. Applying to `{ all }` also refreshes
+   * `lastAppliedStyleSnapshot` so "Reset changes" in the Presets tab refers to it.
+   */
+  applyTemplate: (target: TemplateTarget, resolved: ResolvedTemplate) => number;
   /** "RESET CHANGES" (P6 Style Creator, distinct from "RESET TO DEFAULT"): reverts
    * globalStyle/animation to whatever `lastAppliedStyleSnapshot` currently holds — i.e. the
    * style/animation as they were the moment the currently-selected preset (built-in or
@@ -1673,6 +1682,17 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     // "Reset changes" restores exactly what was applied, never a live reference to the
     // preset (built-in or custom) that produced it.
     set({ lastAppliedStyleSnapshot: { style: { ...style }, animation: { ...animation } } });
+  },
+
+  applyTemplate: (target, resolved) => {
+    const { project } = get();
+    if (!project) return 0;
+    const before = snapshotOf(project);
+    const after = applyTemplateToSnapshot(before, target, resolved);
+    if (after === before) return 0;
+    get().commit((snap) => applyTemplateToSnapshot(snap, target, resolved));
+    if ("all" in target) set({ lastAppliedStyleSnapshot: { style: { ...resolved.style }, animation: { ...resolved.animation } } });
+    return countTemplateTargets(project.subtitles, target);
   },
 
   resetToLastApplied: () => {
