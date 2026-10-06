@@ -1,6 +1,7 @@
 "use client";
 
-import { useState } from "react";
+import { resolveEditScope, selectionKeyOf } from "@/lib/edit-scope";
+import { OverrideNotice } from "./scope-controls";
 import { useEditorStore } from "@/store/editor-store";
 import { resolveAnimation } from "@/types/subtitle";
 import type { EntranceAnimation, ExitAnimation, WordAnimation } from "@/types/subtitle";
@@ -79,10 +80,13 @@ export function AnimationPanel() {
   const setGlobalAnimation = useEditorStore((s) => s.setGlobalAnimation);
   const setSubtitleAnimationOverride = useEditorStore((s) => s.setSubtitleAnimationOverride);
   const applyAnimationToSubtitles = useEditorStore((s) => s.applyAnimationToSubtitles);
-  const [scopeSelected, setScopeSelected] = useState(false);
+  // Shared with the Templates / Presets / Style tabs (store.editScope); until chosen, this tab edits All captions as before.
+  const editScope = useEditorStore((s) => s.editScope);
+  const setEditScope = useEditorStore((s) => s.setEditScope);
 
   if (!project) return null;
   const selectedSub = project.subtitles.find((s) => s.id === selectedId);
+  const scopeSelected = resolveEditScope(editScope, selectionKeyOf(selectedId, selectedIds), !!selectedSub, "all") === "selected";
   const editingOverride = scopeSelected && selectedSub;
   // Task 94820 (P8): same batch-aware "This caption" scope as style-panel.tsx — see that file's
   // own doc comment on the "display the focused caption, write to the whole selection" convention.
@@ -114,13 +118,13 @@ export function AnimationPanel() {
             <div className="flex rounded-md border border-border-strong bg-surface p-0.5 text-xs">
               <button
                 className={cn("rounded px-2 py-1", !scopeSelected ? "bg-accent text-white" : "text-muted")}
-                onClick={() => setScopeSelected(false)}
+                onClick={() => setEditScope("all")}
               >
                 All captions
               </button>
               <button
                 className={cn("rounded px-2 py-1", scopeSelected ? "bg-accent text-white" : "text-muted")}
-                onClick={() => setScopeSelected(true)}
+                onClick={() => setEditScope("selected")}
               >
                 {isBatchSelection ? `${selectedIds.size} captions` : "This caption"}
               </button>
@@ -128,6 +132,8 @@ export function AnimationPanel() {
           </div>
         </div>
       )}
+
+      {!editingOverride && <OverrideNotice kind="animation" className="mx-4 mt-3" />}
 
       <Section title="Entrance animation">
         {ENTRANCE.map((e) => (

@@ -1,6 +1,8 @@
 "use client";
 
 import { useState } from "react";
+import { resolveEditScope, selectionKeyOf, validWordIndex } from "@/lib/edit-scope";
+import { OverrideNotice } from "./scope-controls";
 import { useEditorStore } from "@/store/editor-store";
 import { resolveStyle } from "@/types/subtitle";
 import type { SubtitleStyle, HAlign, VAlign, TextCase } from "@/types/subtitle";
@@ -111,13 +113,20 @@ export function StylePanel() {
   const setWordStyleOverride = useEditorStore((s) => s.setWordStyleOverride);
   const copyStyle = useEditorStore((s) => s.copyStyle);
   const pasteStyle = useEditorStore((s) => s.pasteStyle);
-  const [scopeSelected, setScopeSelected] = useState(false);
-  const [selectedWordIndex, setSelectedWordIndex] = useState<number | null>(null);
+  // The scope is shared with the Templates / Presets / Animation tabs (store.editScope): choosing "This caption" anywhere
+  // makes every tab edit that caption. Until the user chooses, this tab keeps its long-standing default (All captions).
+  const editScope = useEditorStore((s) => s.editScope);
+  const setEditScope = useEditorStore((s) => s.setEditScope);
+  // A word index belongs to one caption (see validWordIndex): remember which, so it can't leak to another caption.
+  const [wordMemory, setWordMemory] = useState<{ subtitleId: string; index: number } | null>(null);
   const { families: systemFamilies } = useSystemFonts();
 
   if (!project) return null;
   const selectedSub = project.subtitles.find((s) => s.id === selectedId);
+  const scopeSelected = resolveEditScope(editScope, selectionKeyOf(selectedId, selectedIds), !!selectedSub, "all") === "selected";
   const editingOverride = scopeSelected && selectedSub;
+  const selectedWordIndex = validWordIndex(wordMemory, selectedSub);
+  const setSelectedWordIndex = (index: number | null) => setWordMemory(index === null || !selectedSub ? null : { subtitleId: selectedSub.id, index });
   // Task 94820 (P8): "This caption" becomes a BATCH edit once more than one caption is selected —
   // same scope toggle, same patch() call sites, just fanned out to applyStyleToSubtitles for the
   // whole selectedSubtitleIds set in one commit instead of setSubtitleStyleOverride for one id.
@@ -180,7 +189,7 @@ export function StylePanel() {
               <button
                 className={cn("rounded px-2 py-1", !scopeSelected ? "bg-accent text-white" : "text-muted")}
                 onClick={() => {
-                  setScopeSelected(false);
+                  setEditScope("all");
                   setSelectedWordIndex(null);
                 }}
               >
@@ -188,7 +197,7 @@ export function StylePanel() {
               </button>
               <button
                 className={cn("rounded px-2 py-1", scopeSelected ? "bg-accent text-white" : "text-muted")}
-                onClick={() => setScopeSelected(true)}
+                onClick={() => setEditScope("selected")}
               >
                 {isBatchSelection ? `${selectedIds.size} captions` : "This caption"}
               </button>
@@ -196,6 +205,8 @@ export function StylePanel() {
           </div>
         </div>
       )}
+
+      {!editingOverride && <OverrideNotice kind="style" className="mx-4 mt-3" />}
 
       {editingOverride && selectedSub && !isBatchSelection && (
         <Section title="Word overrides">

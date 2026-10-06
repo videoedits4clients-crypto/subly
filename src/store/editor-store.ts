@@ -13,6 +13,7 @@ import type {
 } from "../types/subtitle.ts";
 import { breakIntoLines } from "../lib/subtitles/linebreak.ts";
 import { copyStyleToClipboard, readStyleClipboard } from "../lib/style-clipboard.ts";
+import { selectionKeyOf, type EditScope, type StoredEditScope } from "../lib/edit-scope.ts";
 import { applyTemplateToSnapshot, countTemplateTargets, type ResolvedTemplate, type TemplateTarget } from "../lib/caption-templates.ts";
 import { normalizeCuts } from "../lib/timeline/edit-model.ts";
 import {
@@ -202,6 +203,17 @@ interface EditorState {
   captionClipboard: CaptionClipboard | null;
   setCaptionClipboard: (clipboard: CaptionClipboard | null) => void;
 
+  /**
+   * Which captions the Templates / Presets / Style / Animation panels act on, shared so the four tabs can never
+   * disagree: `"selected"` = the selected caption(s), `"all"` = the project (and, for a template, every caption).
+   * `null` = the user has not chosen yet (each panel then uses its own long-standing default: Style and Animation
+   * edit "All captions", Templates apply to the selection if there is one). Ephemeral UI state — never undoable,
+   * never persisted, reset on load. With no selection every panel acts on the project whatever this says.
+   */
+  editScope: StoredEditScope | null;
+  /** Records the scope the user chose for the CURRENT selection (see resolveEditScope: it lapses when the selection changes). */
+  setEditScope: (scope: EditScope | null) => void;
+
   past: HistorySnapshot[];
   future: HistorySnapshot[];
 
@@ -269,7 +281,7 @@ interface EditorState {
   markDirty: () => void;
   setSaveState: (s: EditorState["saveState"]) => void;
 
-  commit: (mutator: (snapshot: HistorySnapshot) => HistorySnapshot) => void;
+  commit: (mutator: (snapshot: HistorySnapshot) => HistorySnapshot, coalesceKey?: string) => void;
   undo: () => void;
   redo: () => void;
 
@@ -550,6 +562,8 @@ interface EditorState {
    * `lastAppliedStyleSnapshot` so "Reset changes" in the Presets tab refers to it.
    */
   applyTemplate: (target: TemplateTarget, resolved: ResolvedTemplate) => number;
+  /** Removes the per-caption style AND animation overrides of the given captions in one undoable step, so they follow the project look again. Returns how many captions changed. */
+  clearCaptionLooks: (ids: string[]) => number;
   /** "RESET CHANGES" (P6 Style Creator, distinct from "RESET TO DEFAULT"): reverts
    * globalStyle/animation to whatever `lastAppliedStyleSnapshot` currently holds — i.e. the
    * style/animation as they were the moment the currently-selected preset (built-in or
@@ -620,6 +634,17 @@ interface EditorState {
 }
 
 const MAX_HISTORY = 60;
+/** Edits of the same property closer together than this are one gesture (see commit). */
+const COALESCE_GAP_MS = 600;
+let lastEditMeta: { key: string; at: number } | null = null;
+/**
+ * Coalescing key for a style/animation patch: the scope plus the properties touched. A reset — `null`, or a patch that
+ * removes a property (an `undefined` value) — is a discrete action and never coalesces.
+ */
+function editKey(scope: string, patch: object | null): string | undefined {
+  if (patch === null || Object.values(patch).some((v) => v === undefined)) return undefined;
+  return `${scope}|${Object.keys(patch).sort().join(",")}`;
+}
 
 /** The floor on a caption's own duration — matches the timeline drag's pre-existing minimum
  * (see timeline.tsx's onPointerMove, which already used this same 0.1s bound inline before
@@ -762,6 +787,8 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   reviewedIssueIds: new Set(),
   captionClipboard: null,
   setCaptionClipboard: (captionClipboard) => set({ captionClipboard }),
+  editScope: null,
+  setEditScope: (scope) => set((s) => ({ editScope: scope === null ? null : { scope, selectionKey: selectionKeyOf(s.selectedSubtitleId, s.selectedSubtitleIds) } })),
   past: [],
   future: [],
 
@@ -772,6 +799,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     // when there was nothing to fill in (the overwhelmingly common case) — only mark dirty
     // when one of them actually generated something, so that gets persisted promptly
     // instead of sitting client-side-only until some unrelated edit triggers the next autosave.
+    lastEditMeta = null;
     const generated = subtitles !== project.subtitles;
     set({
       project: { ...project, subtitles },
@@ -783,6 +811,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       selectionAnchorId: null,
       lastAppliedCustomPresetId: null,
       lastAppliedStyleSnapshot: null,
+      editScope: null,
       dirty: generated,
       saveState: "idle",
       // A report from whatever project was open before (or a stale one from this same project
@@ -918,16 +947,23 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   markDirty: () => set({ dirty: true }),
   setSaveState: (saveState) => set({ saveState }),
 
-  commit: (mutator) => {
+  commit: (mutator, coalesceKey) => {
     const { project } = get();
     if (!project) return;
     const before = snapshotOf(project);
+    // A continuous edit (a slider drag, a colour-picker drag, typing a hex) is one gesture, not dozens of undo steps —
+    // and 60 history entries is all there is, so one drag used to be able to evict the user's whole history. Consecutive
+    // commits with the SAME key, less than COALESCE_GAP_MS apart, share the undo entry of the first. Any other commit,
+    // undo, redo or load breaks the run (lastEditMeta is reset), so an undo always lands on a gesture boundary.
+    const now = Date.now();
+    const coalesce = coalesceKey !== undefined && lastEditMeta?.key === coalesceKey && now - lastEditMeta.at <= COALESCE_GAP_MS && get().past.length > 0;
+    lastEditMeta = coalesceKey !== undefined ? { key: coalesceKey, at: now } : null;
     const after = mutator(before);
     const withHinglish = ensureHinglishCoverage(after.subtitles, project.captionOutputMode);
     const subtitles = ensureGujaratiScriptCoverage(withHinglish, project.captionOutputMode);
     set((s) => ({
       project: { ...project, ...after, subtitles },
-      past: [...s.past, before].slice(-MAX_HISTORY),
+      past: coalesce ? s.past : [...s.past, before].slice(-MAX_HISTORY),
       future: [],
       dirty: true,
       ...pruneSelection(s, new Set(subtitles.map((sub) => sub.id))),
@@ -937,6 +973,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   undo: () => {
     const { past, project } = get();
     if (!past.length || !project) return;
+    lastEditMeta = null;
     const previous = past[past.length - 1];
     const current = snapshotOf(project);
     // Task 137421 (P19.12) — fixes the P1 finding in
@@ -964,6 +1001,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   redo: () => {
     const { future, project } = get();
     if (!future.length || !project) return;
+    lastEditMeta = null;
     const next = future[0];
     const current = snapshotOf(project);
     // Task 137421 (P19.12) — same reasoning as undo() just above, symmetric direction: a `future`
@@ -1611,7 +1649,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       return { ...snap, subtitles };
     }),
 
-  setGlobalStyle: (patch) => get().commit((snap) => ({ ...snap, globalStyle: { ...snap.globalStyle, ...patch } })),
+  setGlobalStyle: (patch) => get().commit((snap) => ({ ...snap, globalStyle: { ...snap.globalStyle, ...patch } }), editKey("gstyle", patch)),
 
   setSubtitleStyleOverride: (id, patch) =>
     get().commit((snap) => ({
@@ -1619,7 +1657,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       subtitles: snap.subtitles.map((s) =>
         s.id === id ? { ...s, style: patch === null ? undefined : { ...s.style, ...patch } } : s,
       ),
-    })),
+    }), editKey(`sstyle:${id}`, patch)),
 
   applyStyleToSubtitles: (ids, patch) => {
     if (ids.length === 0) return;
@@ -1629,10 +1667,10 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       subtitles: snap.subtitles.map((s) =>
         idSet.has(s.id) ? { ...s, style: patch === null ? undefined : { ...s.style, ...patch } } : s,
       ),
-    }));
+    }), editKey(`bstyle:${ids.join(",")}`, patch));
   },
 
-  setGlobalAnimation: (patch) => get().commit((snap) => ({ ...snap, animation: { ...snap.animation, ...patch } })),
+  setGlobalAnimation: (patch) => get().commit((snap) => ({ ...snap, animation: { ...snap.animation, ...patch } }), editKey("ganim", patch)),
 
   setSubtitleAnimationOverride: (id, patch) =>
     get().commit((snap) => ({
@@ -1640,7 +1678,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       subtitles: snap.subtitles.map((s) =>
         s.id === id ? { ...s, animation: patch === null ? undefined : { ...s.animation, ...patch } } : s,
       ),
-    })),
+    }), editKey(`sanim:${id}`, patch)),
 
   applyAnimationToSubtitles: (ids, patch) => {
     if (ids.length === 0) return;
@@ -1650,7 +1688,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       subtitles: snap.subtitles.map((s) =>
         idSet.has(s.id) ? { ...s, animation: patch === null ? undefined : { ...s.animation, ...patch } } : s,
       ),
-    }));
+    }), editKey(`banim:${ids.join(",")}`, patch));
   },
 
   setWordStyleOverride: (subtitleId, wordIndex, patch) =>
@@ -1664,7 +1702,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
         });
         return { ...s, words };
       }),
-    })),
+    }), editKey(`wstyle:${subtitleId}:${wordIndex}`, patch)),
 
   setTimingRules: (patch) => get().commit((snap) => ({ ...snap, timingRules: { ...snap.timingRules, ...patch } })),
 
@@ -1693,6 +1731,17 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     get().commit((snap) => applyTemplateToSnapshot(snap, target, resolved));
     if ("all" in target) set({ lastAppliedStyleSnapshot: { style: { ...resolved.style }, animation: { ...resolved.animation } } });
     return countTemplateTargets(project.subtitles, target);
+  },
+
+  clearCaptionLooks: (ids) => {
+    const { project } = get();
+    if (!project) return 0;
+    const idSet = new Set(ids);
+    const targets = project.subtitles.filter((s) => idSet.has(s.id) && (s.style !== undefined || s.animation !== undefined));
+    if (targets.length === 0) return 0;
+    const clear = new Set(targets.map((s) => s.id));
+    get().commit((snap) => ({ ...snap, subtitles: snap.subtitles.map((s) => (clear.has(s.id) ? { ...s, style: undefined, animation: undefined } : s)) }));
+    return targets.length;
   },
 
   resetToLastApplied: () => {

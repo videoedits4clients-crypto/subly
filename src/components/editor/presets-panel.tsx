@@ -10,7 +10,9 @@ import { styleToContainerCss, styleToTextCss, activeWordCss } from "@/lib/subtit
 import { ENTRANCE, EXIT, WORD } from "./animation-panel";
 import { extractStyleForApply, validateNewPresetName, findPresetByName, duplicatePresetName, type CustomPresetRecord } from "@/lib/custom-presets";
 import { api } from "@/lib/api-client";
-import { applyWordTextCase, type AnimationConfig, type SubtitleStyle } from "@/types/subtitle";
+import { applyWordTextCase, resolveStyle, type AnimationConfig, type SubtitleStyle } from "@/types/subtitle";
+import { resolveEditScope, selectionKeyOf } from "@/lib/edit-scope";
+import { OverrideNotice, ScopeToggle } from "./scope-controls";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -171,6 +173,12 @@ function CustomPresetCard({
 export function PresetsPanel() {
   const project = useEditorStore((s) => s.project);
   const applyPreset = useEditorStore((s) => s.applyPreset);
+  const applyTemplate = useEditorStore((s) => s.applyTemplate);
+  const undo = useEditorStore((s) => s.undo);
+  const selectedSubtitleId = useEditorStore((s) => s.selectedSubtitleId);
+  const selectedSubtitleIds = useEditorStore((s) => s.selectedSubtitleIds);
+  const editScope = useEditorStore((s) => s.editScope);
+  const setEditScope = useEditorStore((s) => s.setEditScope);
   const setGlobalStyle = useEditorStore((s) => s.setGlobalStyle);
   const lastAppliedStyleSnapshot = useEditorStore((s) => s.lastAppliedStyleSnapshot);
   const resetToLastApplied = useEditorStore((s) => s.resetToLastApplied);
@@ -203,9 +211,20 @@ export function PresetsPanel() {
   // Recomputed from the project's actual current style, not just "the last preset clicked" —
   // so it stays honest if the user tweaks a slider afterward (no preset should look selected
   // once the style no longer matches it). Checked against both built-in and custom presets.
-  const activeBuiltInId = project ? (PICKER_PRESETS.find((p) => JSON.stringify(p.style) === JSON.stringify(project.globalStyle))?.id ?? null) : null;
-  const activeCustomId =
-    project && customPresets ? (customPresets.find((p) => JSON.stringify(p.style) === JSON.stringify(project.globalStyle))?.id ?? null) : null;
+  // A preset applies to the same thing the Style / Animation / Templates tabs act on (the shared edit scope): the selected
+  // captions' own looks, or the project look. "Active" is judged against that same target, so the highlighted card is
+  // always the preset the user is actually looking at.
+  const selectionIds = useMemo(() => {
+    const ids = new Set(selectedSubtitleIds);
+    if (selectedSubtitleId) ids.add(selectedSubtitleId);
+    return Array.from(ids);
+  }, [selectedSubtitleId, selectedSubtitleIds]);
+  const hasSelection = selectionIds.length > 0;
+  const scope = resolveEditScope(editScope, selectionKeyOf(selectedSubtitleId, selectedSubtitleIds), hasSelection, "all");
+  const focusedSub = project?.subtitles.find((s) => s.id === (selectedSubtitleId ?? selectionIds[0]));
+  const targetStyle = project ? (scope === "selected" && focusedSub ? resolveStyle(project, focusedSub) : project.globalStyle) : null;
+  const activeBuiltInId = targetStyle ? (PICKER_PRESETS.find((p) => JSON.stringify(p.style) === JSON.stringify(targetStyle))?.id ?? null) : null;
+  const activeCustomId = targetStyle && customPresets ? (customPresets.find((p) => JSON.stringify(p.style) === JSON.stringify(targetStyle))?.id ?? null) : null;
 
   // "Update preset" only makes sense for the custom preset the user most recently applied in
   // this session, and only once they've actually changed something since — otherwise there's
@@ -221,6 +240,7 @@ export function PresetsPanel() {
   // instead of a specific custom preset's stored row.
   const hasUnappliedChanges =
     !!project &&
+    scope === "all" &&
     !!lastAppliedStyleSnapshot &&
     (JSON.stringify(project.globalStyle) !== JSON.stringify(lastAppliedStyleSnapshot.style) ||
       JSON.stringify(project.animation) !== JSON.stringify(lastAppliedStyleSnapshot.animation));
@@ -239,14 +259,26 @@ export function PresetsPanel() {
   );
   const showCustomSection = familyFilter === "All" || familyFilter === MY_STYLES_FILTER;
 
+  /** One preset click: the selected captions get it as their own look (one undo step), or it becomes the project look. */
+  function applyTo(style: SubtitleStyle, animation: AnimationConfig, name: string) {
+    if (scope === "selected" && hasSelection) {
+      const n = applyTemplate({ ids: selectionIds }, { style, animation });
+      setEditScope("selected");
+      if (n > 0) toast.success(`Applied "${name}" to ${n === 1 ? "1 caption" : `${n} captions`}.`, { action: { label: "Undo", onClick: () => undo() } });
+      return;
+    }
+    applyPreset(style, animation);
+    setEditScope("all");
+  }
+
   function applyBuiltIn(preset: SubtitlePresetDef) {
-    applyPreset(preset.style, preset.animation);
+    applyTo(preset.style, preset.animation, preset.name);
     setLastAppliedCustomId(null);
   }
 
   function applyCustom(preset: CustomPresetRecord) {
     const { style, animation } = extractStyleForApply(preset);
-    applyPreset(style, animation);
+    applyTo(style, animation, preset.name);
     setLastAppliedCustomId(preset.id);
   }
 
@@ -386,6 +418,11 @@ export function PresetsPanel() {
               </button>
             )}
           </div>
+          <div className="mb-2 flex items-center justify-between gap-2">
+            <span className="text-xs text-muted">Apply to:</span>
+            <ScopeToggle scope={scope} hasSelection={hasSelection} selectedCount={selectionIds.length} captionCount={project?.subtitles.length ?? 0} onChange={setEditScope} />
+          </div>
+          {scope === "all" && <OverrideNotice kind="look" className="mb-2" />}
           <div className="relative">
             <Search className="pointer-events-none absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-muted-2" />
             <Input

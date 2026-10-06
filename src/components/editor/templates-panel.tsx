@@ -16,9 +16,11 @@ import {
   type ResolvedTemplate,
   type TemplateTarget,
 } from "@/lib/caption-templates";
+import { resolveEditScope, selectionKeyOf, summarizeOverrides } from "@/lib/edit-scope";
 import { cn } from "@/lib/utils";
 import { Input } from "@/components/ui/input";
 import { PresetPreview, describeMotion } from "./presets-panel";
+import { ScopeToggle } from "./scope-controls";
 
 /** Resolved once at module load: a template is plain data, so selecting, filtering or typing in the search box never re-resolves (or re-renders) a card. */
 const RESOLVED = new Map<string, ResolvedTemplate>(CAPTION_TEMPLATES.map((t) => [t.id, resolveTemplate(t)]));
@@ -56,7 +58,9 @@ export function TemplatesPanel() {
   const selectedIds = useEditorStore((s) => s.selectedSubtitleIds);
   const applyTemplate = useEditorStore((s) => s.applyTemplate);
   const undo = useEditorStore((s) => s.undo);
-  const [scopeChoice, setScopeChoice] = useState<"selected" | "all">("selected");
+  // Shared with the Presets / Style / Animation tabs. Unchosen: Templates apply to the selection when there is one.
+  const editScope = useEditorStore((s) => s.editScope);
+  const setEditScope = useEditorStore((s) => s.setEditScope);
   const [family, setFamily] = useState<StyleFamily | "all">("all");
   const [search, setSearch] = useState("");
 
@@ -67,7 +71,7 @@ export function TemplatesPanel() {
   }, [selectedId, selectedIds]);
   const hasSelection = targetIds.length > 0;
   // With nothing selected "Selected" has no meaning, so the panel falls back to "All captions" (the toggle shows it).
-  const scope: "selected" | "all" = hasSelection ? scopeChoice : "all";
+  const scope = resolveEditScope(editScope, selectionKeyOf(selectedId, selectedIds), hasSelection, "selected");
 
   const subtitles = project?.subtitles;
   const effective = useMemo(() => {
@@ -82,13 +86,16 @@ export function TemplatesPanel() {
 
   function apply(template: CaptionTemplate) {
     const target: TemplateTarget = scope === "all" ? { all: true } : { ids: targetIds };
+    const replaced = scope === "all" && project ? summarizeOverrides(project.subtitles).any.length : 0;
     const count = applyTemplate(target, RESOLVED.get(template.id)!);
+    // the scope just used becomes the scope of the Style / Animation / Presets tabs, so they edit what the template just styled
+    setEditScope(scope);
     const what = scope === "all" ? "all captions" : count === 1 ? "1 caption" : `${count} captions`;
     if (count === 0) {
       toast.message(`"${template.name}" is already applied to ${what}.`);
       return;
     }
-    toast.success(`Applied "${template.name}" to ${what}.`, {
+    toast.success(`Applied "${template.name}" to ${what}${replaced > 0 ? ` — replaced ${replaced} custom ${replaced === 1 ? "look" : "looks"}` : ""}.`, {
       action: { label: "Undo", onClick: () => undo() },
       icon: <Undo2 className="size-3.5" />,
     });
@@ -96,6 +103,7 @@ export function TemplatesPanel() {
 
   if (!project || !subtitles) return null;
   const count = subtitles.length;
+  const overridden = summarizeOverrides(subtitles).any.length;
 
   return (
     <div className="flex h-full flex-col overflow-y-auto">
@@ -109,24 +117,13 @@ export function TemplatesPanel() {
 
         <div className="flex items-center justify-between gap-2">
           <span className="text-xs text-muted">Apply to:</span>
-          <div className="flex rounded-md border border-border-strong bg-surface p-0.5 text-xs" role="group" aria-label="Apply template to">
-            <button
-              disabled={!hasSelection}
-              onClick={() => setScopeChoice("selected")}
-              className={cn("rounded px-2 py-1 disabled:cursor-not-allowed disabled:opacity-50", scope === "selected" ? "bg-accent text-white" : "text-muted")}
-              title={hasSelection ? undefined : "Select one or more captions to apply a template to just those"}
-            >
-              {hasSelection ? (targetIds.length === 1 ? "This caption" : `${targetIds.length} selected`) : "Selected"}
-            </button>
-            <button
-              onClick={() => setScopeChoice("all")}
-              className={cn("rounded px-2 py-1", scope === "all" ? "bg-accent text-white" : "text-muted")}
-            >
-              All captions ({count})
-            </button>
-          </div>
+          <ScopeToggle scope={scope} hasSelection={hasSelection} selectedCount={targetIds.length} captionCount={count} onChange={setEditScope} />
         </div>
-        {scope === "all" && <p className="text-[11px] leading-snug text-muted-2">Replaces the project style and any per-caption style or animation overrides. One Undo restores everything.</p>}
+        {scope === "all" && (
+          <p className="text-[11px] leading-snug text-muted-2">
+            Replaces the project style and {overridden > 0 ? `the ${overridden} caption${overridden === 1 ? "" : "s"} with their own style or animation` : "any per-caption style or animation overrides"}. One Undo restores everything.
+          </p>
+        )}
 
         <div className="relative">
           <Search className="pointer-events-none absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-muted-2" />

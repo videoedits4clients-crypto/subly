@@ -338,3 +338,64 @@ words under each name; it plays in the editor preview as soon as the template is
 * Templates reuse existing presets, so they inherit those presets' limitations (e.g. the Archivo / Archivo Black font-name
   collision when both are used in one export; typewriter / word-pop / char-pop are approximated fades).
 * There are no user-defined templates; a custom look is saved as a preset instead.
+
+## Template + styling workflow (P23)
+
+How the Templates, Presets, Style and Animation tabs fit together, what each one changes, and what is undoable.
+
+**State model**
+
+| State | Where | Scope | Undoable | Persisted |
+|---|---|---|---|---|
+| Project look | `project.globalStyle` + `project.animation` | every caption without an override | yes | yes |
+| Caption look | `subtitle.style` / `subtitle.animation` (an override; absent = follows the project) | that caption | yes | yes |
+| Word styling | `word.style` | one word | yes | yes |
+| *Effective* look | `{ ...project look, ...caption look }` — what the preview and export render | derived | — | — |
+| Edit scope | `editScope` (store) | which of the above the four tabs write to | no | no |
+| Selection, active tab, search/filter | UI state | — | no | no |
+
+**One shared edit scope.** "This caption / N selected" vs "All captions" is a single value shared by Templates, Presets, Style
+and Animation, so the tabs can never disagree. Choosing *This caption* in the Templates tab means the Style and Animation tabs
+edit that caption too (previously they stayed on "All captions", so an edit silently changed nothing visible — the caption
+carries a complete override). A chosen scope belongs to the selection it was chosen for: when the selection changes it lapses and
+each tab returns to its own long-standing default (Templates: the selection; Style, Animation, Presets: All captions), so an
+earlier "apply to all" can never turn the next click on a newly selected caption into a project-wide replacement. With no
+selection every tab acts on the project.
+
+**What each action writes**
+
+* Template → *selected*: the template's complete style + animation as each caption's own override. Template → *all*: the project
+  look, and every caption override is **cleared** (the one deliberately destructive action: stated under the scope toggle with the
+  number of captions affected, mentioned in the toast, undone by one Ctrl+Z).
+* Preset → *selected*: same as a template (own look on the selected captions). Preset → *all*: sets the project look and leaves
+  captions that carry their own look alone — the Presets tab says how many there are and offers "Reset N captions to the project look".
+* Style / Animation edits write a *patch*: onto the project look in the "All captions" scope, onto the captions' overrides otherwise.
+  Typography edits never touch animation and vice versa; word styling is never touched by any of them.
+* "Reset N captions to the project look" (shown in the Style, Animation and Presets tabs while scope = All and captions have their
+  own look) removes the style *and* animation override of those captions in one undoable step.
+
+**Visible indicators.** A caption with its own look shows a "Custom look" tag in the captions list; while the scope is All, the Style,
+Animation and Presets tabs say "N captions have their own style — changes to the project style don't reach them" with
+"Edit the selected caption instead" and "Reset …".
+
+**Undo / redo.** One intentional action = one history step. Applying a template/preset to any number of captions is one step. A
+continuous edit — a slider drag, a colour-picker drag, typing a value — is one step: consecutive edits of the *same property* of the
+*same target* less than 0.6 s apart share their undo entry (before, every slider tick was an entry: a 40-tick drag was 40 undo steps
+and could push the whole 60-entry history out). Removing a property (a reset) never coalesces; any other action, undo, redo or
+project load ends the run. Opening a tab, selecting captions, changing the scope, searching, playing and autosave create no history.
+
+**Word editor.** The word index shown in Style → Word overrides belongs to one caption: it is dropped when the focus moves to another
+caption (a shorter caption used to be indexed past its last word).
+
+**Verified** (real Electron, MP4 exports at 720×1280 and 1080×1920): a project mixing the project look, a template on one caption
+plus a size edit and an exit change, a template on two captions, a custom position, a word style and a per-caption animation exports
+with every caption's own font, size, position, colour and motion — typography within 0.9% of the canvas of the preview, animation
+within model tolerance — and, after an Electron restart, the same project exports bit-identical frames (PSNR ∞).
+
+**Known limitations**
+
+* Applying a template to selected captions writes the *full* style as an override: later "All captions" edits do not reach them
+  (the notice says so; reset them to follow the project again).
+* Preset → All does not clear caption overrides (unlike Template → All); this is deliberate to keep the long-standing preset behaviour.
+* Coalescing is time-based: two quick edits of the same property within 0.6 s (e.g. clicking Left then Center alignment) share a step.
+* A scope choice is not remembered across selections (by design, see above).

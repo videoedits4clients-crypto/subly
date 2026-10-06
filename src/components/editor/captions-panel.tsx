@@ -18,6 +18,7 @@ import { TextCleanupDialog } from "./text-cleanup-dialog";
 import { WordTimingPopover } from "./word-timing-popover";
 import type { Word, CaptionOutputMode, SubtitleStyle } from "@/types/subtitle";
 import { resolveStyle } from "@/types/subtitle";
+import { hasOwnLook } from "@/lib/edit-scope";
 import { toast } from "sonner";
 
 const TRANSFORM_LABELS: Record<TextTransformKind, string> = {
@@ -420,6 +421,7 @@ export function CaptionsPanel() {
               end={s.end}
               isSelected={isSelected}
               isMultiSelected={isMultiSelected}
+              hasOwnLook={hasOwnLook(s)}
               isCurrentQualityIssue={s.id === currentIssueCaptionId}
               // Word-level detail (Task 92618, P7.2) is only ever computed/rendered for the
               // selected caption — every other row gets `null`, so the per-word inspector never
@@ -508,6 +510,7 @@ const CaptionRow = memo(function CaptionRow({
   end,
   isSelected,
   isMultiSelected,
+  hasOwnLook: ownLook,
   isCurrentQualityIssue,
   words,
   captionStyle,
@@ -539,6 +542,8 @@ const CaptionRow = memo(function CaptionRow({
    * everything about word-level detail/editing, so the focused caption keeps looking distinct
    * from the rest of the batch, per this task's own requirement. */
   isMultiSelected: boolean;
+  /** P23: the caption carries its own style and/or animation override (shown as a "Custom look" tag). */
+  hasOwnLook: boolean;
   /** True when this is the caption the shared qualityIssueIndex cursor currently points at
    * (Task 93471, P7.3) — a subtle indicator distinct from ordinary caption selection, since a
    * caption can be selected for entirely unrelated reasons (the user just clicked it) without
@@ -653,6 +658,14 @@ const CaptionRow = memo(function CaptionRow({
             actually missing, and showing it only when selected keeps a long virtualized list
             just as compact as before instead of adding a third number to every row. */}
         {isSelected && <span className="text-muted-2/80">· Duration: {(end - start).toFixed(3)}s</span>}
+        {ownLook && (
+          <span
+            className="rounded-sm bg-accent-soft px-1 py-0.5 font-sans text-accent"
+            title="This caption has its own style or animation, so changes to the project look don't reach it. Reset it from the Style or Animation tab."
+          >
+            Custom look
+          </span>
+        )}
         {isCurrentQualityIssue && (
           <span
             className="flex items-center gap-0.5 rounded-sm bg-warning/15 px-1 py-0.5 font-sans text-warning"
