@@ -86,3 +86,6 @@ next-env.d.ts
 # back in. Always `npm run clean` before rebuilding regardless.
 /release*/
 
+
+# The ~480 MB speech model that ships inside the installer (scripts/prepare-model-seed.js, `npm run model:seed`).
+/assets/models-seed/

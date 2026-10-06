@@ -5,6 +5,9 @@ import { extractAudio } from "@/lib/ffmpeg";
 import { getTranscriptionProvider } from "@/lib/transcription";
 import { cancelTranscriptionRequest, TranscriptionCancelledError, TranscriptionStalledError } from "@/lib/transcription/local-whisper-sidecar";
 import { isSidecarBusyMessage } from "@/lib/transcription-status-message";
+import { classifyTranscriptionError, userMessageFor, type TranscriptionStage } from "@/lib/transcription/transcription-error";
+import { logDiagnostic, sanitize, sanitizeTail } from "@/lib/diagnostics";
+import { promises as fsp } from "fs";
 import { segmentWords } from "@/lib/subtitles/segment";
 import { resolveTimingRules } from "@/types/subtitle";
 import { toJson, fromJson } from "@/lib/db-json";
@@ -40,6 +43,11 @@ export function cancelActiveTranscription(projectId: string): boolean {
 export async function processVideo(projectId: string): Promise<void> {
   const storage = getStorage();
   let requestId: string | undefined;
+  // Where the pipeline currently is — a failure is classified (and logged) with the stage it happened in.
+  let stage: TranscriptionStage = "probe";
+  const startedAt = Date.now();
+  let inputInfo: { ext: string; bytes?: number } | undefined;
+  let languageForLog: string | undefined;
 
   // Throttled DB progress writes — the worker emits a "progress" event per Whisper segment,
   // which for a long video can be many times a second; writing every single one would hammer
@@ -69,6 +77,11 @@ export async function processVideo(projectId: string): Promise<void> {
     const audioKey = path.posix.join(path.dirname(project.video.url.replace(/^\/api\/files\//, "")), "audio.wav");
     const audioAbsPath = await storage.getPath(audioKey);
 
+    const inputBytes = await fsp.stat(inputPath).then((st) => st.size).catch(() => undefined);
+    inputInfo = { ext: path.extname(inputPath).toLowerCase(), bytes: inputBytes };
+    languageForLog = project.language;
+    logDiagnostic({ event: "transcription-start", projectId, language: project.language, input: inputInfo });
+    stage = "extract-audio";
     await extractAudio(inputPath, audioAbsPath);
     const audioUrl = storage.publicUrl(audioKey);
     await prisma.videoAsset.update({ where: { projectId }, data: { audioUrl } });
@@ -83,6 +96,7 @@ export async function processVideo(projectId: string): Promise<void> {
     // (which may pick a per-language local model — see local-provider.ts resolveLocalModel)
     // and the actual transcribe() call, so the two can never disagree about what was asked.
     const language = project.language === "auto" ? undefined : project.language;
+    stage = "worker-start";
     const provider = getTranscriptionProvider({
       language,
       onProgress: persistProgress,
@@ -91,11 +105,15 @@ export async function processVideo(projectId: string): Promise<void> {
         activeTranscriptions.set(projectId, id);
       },
     });
+    stage = "transcribe";
     const result = await provider.transcribe(audioAbsPath, { language });
+    stage = "parse-output";
 
+    if (!result || !Array.isArray(result.words) || !Array.isArray(result.segments)) throw new Error("The transcription engine returned an unreadable result.");
     const rules = resolveTimingRules(fromJson<Partial<TimingRules>>(project.timingRules, {}));
     const subtitles = segmentWords(result.words, rules, result.segments);
 
+    stage = "persist";
     await prisma.$transaction(async (tx) => {
       await tx.subtitle.deleteMany({ where: { projectId } });
       if (subtitles.length) {
@@ -117,34 +135,43 @@ export async function processVideo(projectId: string): Promise<void> {
       });
     });
     track("transcription_completed", { projectId, provider: result.provider, subtitleCount: subtitles.length });
+    logDiagnostic({ event: "transcription-complete", projectId, language: result.language, provider: result.provider, captions: subtitles.length, words: result.words.length, durationMs: Date.now() - startedAt });
   } catch (err) {
     // Cancellation and a stalled/unresponsive worker are distinct, expected outcomes — not
     // generic failures — so the user sees an accurate message rather than "something went
     // wrong" for either. Both leave the project in ERROR (never a half-committed READY
     // project — the $transaction above is the only path that can set READY, and it never ran)
     // with Retry available via the existing /retry route, exactly as any other ERROR does.
+    // The failure is classified into a structured error (code + stage + evidence). The user sees the short message for its
+    // code; everything needed to diagnose it — exit code, worker stderr tail, stage, input shape — goes to the diagnostics log.
+    // Cancelled / stalled / busy keep their long-standing, specific messages (see userMessageFor).
+    const failure = classifyTranscriptionError(err, stage);
     const cancelled = err instanceof TranscriptionCancelledError;
     const stalled = err instanceof TranscriptionStalledError;
-    // The sidecar only ever transcribes one request at a time (python/whisper_worker.py
-    // deliberately rejects a second overlapping "transcribe" rather than silently interleaving
-    // two decodes — confirmed by reproducing it live, not a crash) and already reports back a
-    // clear, specific reason for it. Without this check that reason was being discarded in
-    // favor of the generic "Something went wrong" message below, which reads as a real failure
-    // (inviting a pointless Retry) instead of "wait for the other one, or just try again."
+    // The sidecar only ever transcribes one request at a time (python/whisper_worker.py deliberately rejects a second
+    // overlapping "transcribe" rather than silently interleaving two decodes) and reports a clear reason for it.
     const busy = err instanceof Error && isSidecarBusyMessage(err.message);
-    console.error(`[pipeline] project ${projectId} ${cancelled ? "cancelled" : stalled ? "stalled" : busy ? "rejected (sidecar busy)" : "failed"}:`, err);
-    track(cancelled ? "transcription_cancelled" : stalled ? "transcription_stalled" : "transcription_failed", { projectId });
+    console.error(`[pipeline] project ${projectId} ${cancelled ? "cancelled" : stalled ? "stalled" : busy ? "rejected (sidecar busy)" : "failed"} [${failure.code}/${failure.stage ?? stage}]:`, err);
+    logDiagnostic({
+      event: "transcription-failed",
+      projectId,
+      code: failure.code,
+      stage: failure.stage ?? stage,
+      message: sanitize(failure.message),
+      exitCode: failure.details.exitCode,
+      signal: failure.details.signal,
+      systemCode: failure.details.systemCode,
+      stderrTail: sanitizeTail(failure.details.stderrTail),
+      language: languageForLog,
+      input: inputInfo,
+      durationMs: Date.now() - startedAt,
+    });
+    track(cancelled ? "transcription_cancelled" : stalled ? "transcription_stalled" : "transcription_failed", { projectId, code: failure.code });
     await prisma.project.update({
       where: { id: projectId },
       data: {
         status: "ERROR",
-        errorMessage: cancelled
-          ? "Transcription cancelled."
-          : stalled
-            ? "Transcription timed out — the worker stopped responding."
-            : busy
-              ? "Another transcription was already in progress. Please wait for it to finish, then retry."
-              : "Something went wrong while generating subtitles.",
+        errorMessage: userMessageFor(failure.code),
         progress: 0,
         processingStartedAt: null,
       },

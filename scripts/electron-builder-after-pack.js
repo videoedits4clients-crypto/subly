@@ -31,6 +31,31 @@ function assertNonEmptyDir(p, what) {
   return entries;
 }
 
+/** The pinned model files must be in the packaged app-server, complete (size > 0). Waive with SUBLY_ALLOW_NO_MODEL_SEED=1. */
+function assertModelSeed(appServerDir) {
+  const repoDir = path.join(appServerDir, "assets", "models-seed", "models--Systran--faster-whisper-small");
+  const missing = [];
+  try {
+    const revision = fs.readFileSync(path.join(repoDir, "refs", "main"), "utf8").trim();
+    for (const name of ["config.json", "model.bin", "tokenizer.json", "vocabulary.txt"]) {
+      const file = path.join(repoDir, "snapshots", revision, name);
+      if (!fs.existsSync(file) || fs.statSync(file).size === 0) missing.push(name);
+    }
+  } catch {
+    missing.push("refs/main");
+  }
+  if (missing.length === 0) return;
+  const message =
+    `[afterPack] The bundled speech model is missing from the packaged app (${missing.join(", ")} under ${repoDir}). ` +
+    `Run "npm run model:seed" (or "node scripts/prepare-model-seed.js --from <hf-cache-dir>") before "npm run build"; ` +
+    `without it a customer's first transcription needs internet access to huggingface.co.`;
+  if (process.env.SUBLY_ALLOW_NO_MODEL_SEED === "1") {
+    console.warn(message + " (waived by SUBLY_ALLOW_NO_MODEL_SEED=1)");
+    return;
+  }
+  throw new Error(message + " Aborting build.");
+}
+
 exports.default = async function afterPack(context) {
   const src = path.join(context.packager.projectDir, ".next", "standalone", "node_modules");
   const appServerDir = path.join(context.appOutDir, "resources", "app-server");
@@ -70,11 +95,16 @@ exports.default = async function afterPack(context) {
     );
   }
 
+  // The bundled speech model. Without it the first transcription needs the network (the failure P23.1 fixed), so an installer
+  // without it must never be produced silently: a hard failure unless explicitly waived for a non-transcription QA build.
+  assertModelSeed(appServerDir);
+
   console.log(`[afterPack] verified packaged node_modules (${copiedEntries.length} top-level entries, including 'next') at ${dest}`);
 };
 
 // Exported for unit testing (see scripts/__tests__/electron-builder-after-pack.test.js) — the
 // real afterPack hook above can't be exercised directly without a full electron-builder
 // context, but these pure assertion functions carry all the actual fail/pass logic.
+exports.assertModelSeed = assertModelSeed;
 exports.assertExists = assertExists;
 exports.assertNonEmptyDir = assertNonEmptyDir;

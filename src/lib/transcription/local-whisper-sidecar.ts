@@ -1,6 +1,8 @@
 import { spawn, spawnSync, type ChildProcessWithoutNullStreams } from "child_process";
 import path from "path";
 import readline from "readline";
+import { TranscriptionError, classifyTranscriptionError, type TranscriptionStage } from "./transcription-error.ts";
+import { logDiagnostic } from "../diagnostics.ts";
 
 /**
  * Manages the long-lived Python (faster-whisper) sidecar process — see
@@ -40,6 +42,8 @@ type PendingResolver = {
   /** Which sidecar process (see sidecarGeneration) this entry's request was actually sent to —
    * lets that process's own "exit" handler recognize entries as its own, see ensureProcess. */
   generation: number;
+  /** Which step of the pipeline this request is (for structured errors / the diagnostics log). */
+  stage: TranscriptionStage;
 };
 
 /** No progress event (or completion) for this long is treated as an unresponsive worker —
@@ -104,6 +108,14 @@ function frozenWorkerPath(): string | null {
   return process.env.SUBLY_WHISPER_WORKER_EXE || null;
 }
 
+/** The pipeline stage a worker command belongs to — used to classify a failure. */
+function stageOf(cmd: string): TranscriptionStage {
+  return cmd === "ensure_model" ? "model-prepare" : cmd === "load" ? "model-load" : "transcribe";
+}
+
+/** How much worker stderr is kept for diagnostics (the tail is what explains a crash). */
+const STDERR_KEEP_CHARS = 8000;
+
 function ensureProcess(): ChildProcessWithoutNullStreams {
   if (sidecar && !sidecar.killed) return sidecar;
 
@@ -114,6 +126,8 @@ function ensureProcess(): ChildProcessWithoutNullStreams {
     ? spawn(frozenExe, [], { stdio: ["pipe", "pipe", "pipe"] })
     : spawn(pythonBin(), [workerScriptPath()], { stdio: ["pipe", "pipe", "pipe"] });
   const rl = readline.createInterface({ input: proc.stdout });
+  let stderrTail = "";
+  let spawnError: (Error & { code?: string }) | null = null;
 
   function settle(id: string, fn: (entry: PendingResolver) => void) {
     const entry = pending.get(id);
@@ -147,7 +161,13 @@ function ensureProcess(): ChildProcessWithoutNullStreams {
     }
     if (msg.type === "error") {
       const message = (msg.message as string) || "Local transcription failed.";
-      settle(id, (e) => e.reject(message === "Cancelled." || e.cancelled ? new TranscriptionCancelledError() : new Error(message)));
+      settle(id, (e) =>
+        e.reject(
+          message === "Cancelled." || e.cancelled
+            ? new TranscriptionCancelledError()
+            : classifyTranscriptionError(new Error(message), e.stage),
+        ),
+      );
       return;
     }
     if (msg.type === "result") {
@@ -156,13 +176,35 @@ function ensureProcess(): ChildProcessWithoutNullStreams {
     }
   });
 
-  proc.stderr.on("data", () => {
-    // faster-whisper/huggingface_hub write informational + tqdm progress text
-    // here; the real progress signal comes over stdout as JSON (see above).
-    // Swallowed rather than logged to keep server logs clean in normal operation.
+  proc.stderr.on("data", (chunk: Buffer) => {
+    // faster-whisper/huggingface_hub write informational + tqdm progress text here; the real progress signal comes over
+    // stdout as JSON (see above). It is not echoed to the server log (noisy), but the TAIL is kept: when the worker dies,
+    // it is the only thing that says why — it goes into the structured error and the diagnostics log.
+    stderrTail = (stderrTail + chunk.toString("utf8")).slice(-STDERR_KEEP_CHARS);
   });
 
-  proc.on("exit", () => {
+  // A spawn that fails (the executable is missing, blocked by security software, not permitted…) emits 'error' and NO usable
+  // process. Unhandled, that crashed the server or left the request hanging until the 5-minute stall watchdog — and said
+  // nothing about why. stdin errors (EPIPE after a dead child) are swallowed here for the same reason.
+  proc.stdin.on("error", () => {});
+  proc.on("error", (err: Error & { code?: string }) => {
+    spawnError = err;
+    if (sidecar === proc) {
+      sidecar = null;
+      sidecarReadyForModel = null;
+      loadPromise = null;
+    }
+    for (const [id, entry] of pending) {
+      if (entry.generation !== myGeneration) continue;
+      pending.delete(id);
+      if (entry.stallTimer) clearTimeout(entry.stallTimer);
+      if (entry.cancelGraceTimer) clearTimeout(entry.cancelGraceTimer);
+      entry.reject(classifyTranscriptionError(err, "worker-start"));
+    }
+    logDiagnostic({ event: "worker-spawn-failed", stage: "worker-start", systemCode: err.code, message: err.message });
+  });
+
+  proc.on("exit", (exitCode: number | null, signal: NodeJS.Signals | null) => {
     // Only touch shared state this generation actually owns — stopSidecar() may already have
     // nulled `sidecar`/spawned a replacement before the OS gets around to reporting THIS
     // process as gone (this "exit" event is inherently async, lagging behind the kill call
@@ -177,7 +219,18 @@ function ensureProcess(): ChildProcessWithoutNullStreams {
       pending.delete(id);
       if (entry.stallTimer) clearTimeout(entry.stallTimer);
       if (entry.cancelGraceTimer) clearTimeout(entry.cancelGraceTimer);
-      entry.reject(entry.cancelled ? new TranscriptionCancelledError() : new Error("Local transcription process exited unexpectedly."));
+      if (entry.cancelled) {
+        entry.reject(new TranscriptionCancelledError());
+        continue;
+      }
+      if (spawnError) continue; // already rejected by the 'error' handler with the real reason
+      entry.reject(
+        new TranscriptionError("WORKER_CRASHED", "Local transcription process exited unexpectedly.", {
+          stage: entry.stage,
+          details: { exitCode, signal, stderrTail },
+        }),
+      );
+      logDiagnostic({ event: "worker-exited-unexpectedly", stage: entry.stage, exitCode, signal });
     }
   });
 
@@ -186,6 +239,8 @@ function ensureProcess(): ChildProcessWithoutNullStreams {
 }
 
 function send(proc: ChildProcessWithoutNullStreams, msg: Record<string, unknown>): void {
+  // the child is gone: its 'error' / 'exit' handler rejects the request with the real reason
+  if (proc.stdin.destroyed || !proc.stdin.writable) return;
   proc.stdin.write(JSON.stringify(msg) + "\n");
 }
 
@@ -208,7 +263,7 @@ function call(cmd: string, extra: Record<string, unknown>, onProgress?: (percent
   const id = String(nextId++);
   onRequestId?.(id);
   return new Promise((resolve, reject) => {
-    const entry: PendingResolver = { resolve, reject, onProgress, generation: sidecarGeneration };
+    const entry: PendingResolver = { resolve, reject, onProgress, generation: sidecarGeneration, stage: stageOf(cmd) };
     pending.set(id, entry);
     armStallWatchdog(id, entry);
     send(proc, { cmd, id, ...extra });
@@ -280,9 +335,17 @@ export async function ensureModelLoaded(config: LocalWhisperConfig, onRequestId?
       },
       undefined,
       onRequestId,
-    ).then(() => {
-      sidecarReadyForModel = key;
-    });
+    ).then(
+      () => {
+        sidecarReadyForModel = key;
+      },
+      (err) => {
+        // A FAILED load must not be remembered: this promise is shared by every later call, so a stale rejection made
+        // Retry fail instantly with the old error without ever trying to load the model again.
+        loadPromise = null;
+        throw err;
+      },
+    );
   }
   await loadPromise;
 }

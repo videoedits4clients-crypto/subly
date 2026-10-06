@@ -140,6 +140,11 @@ if (require.main === module) {
   // user never selects are never pre-cached), but covers the built-in set.
   copyDir(path.join(root, "assets", "fonts-cache-seed"), path.join(standalone, "assets", "fonts-cache-seed"));
 
+  // The default speech model, bundled so the first transcription needs no network (electron/model-seed.js copies it into the
+  // per-user models folder on first run). Optional here — a plain web/dev build has no seed — but the desktop packaging step
+  // (scripts/electron-builder-after-pack.js) refuses to produce an installer without it.
+  copyDir(path.join(root, "assets", "models-seed"), path.join(standalone, "assets", "models-seed"));
+
   // The frozen, Python-free transcription worker (see python/build-worker.js /
   // `npm run worker:build`) — optional here so a plain `npm run build` (web
   // dev/deploy, no desktop packaging) doesn't require it to exist.

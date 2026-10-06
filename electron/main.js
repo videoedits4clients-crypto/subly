@@ -15,6 +15,7 @@ const net = require("net");
 const { spawn, spawnSync } = require("child_process");
 const crypto = require("crypto");
 const { runMigrations } = require("./db-migrations");
+const { ensureModelSeed } = require("./model-seed");
 
 const DEBUG_LOG = path.join(require("os").tmpdir(), "subly-electron-debug.log");
 function dlog(msg) {
@@ -96,6 +97,7 @@ function appDataPaths() {
     uploadsDir: path.join(base, "uploads"),
     modelsDir: path.join(base, "models"),
     fontsCacheDir: path.join(base, "fonts-cache"),
+    logsDir: path.join(base, "logs"),
   };
 }
 
@@ -137,7 +139,7 @@ function ensureFontsCacheSeed(resourcesRoot, fontsCacheDir) {
 
 async function startServer() {
   const port = await findFreePort();
-  const { dbPath, uploadsDir, modelsDir, fontsCacheDir } = appDataPaths();
+  const { base, dbPath, uploadsDir, modelsDir, fontsCacheDir, logsDir } = appDataPaths();
   fs.mkdirSync(uploadsDir, { recursive: true });
   fs.mkdirSync(modelsDir, { recursive: true });
 
@@ -167,6 +169,11 @@ async function startServer() {
   const { applied, alreadyUpToDate } = runMigrations(dbPath, { log: dlog });
   dlog(`db migrations: applied=[${applied.join(", ")}] alreadyUpToDate=[${alreadyUpToDate.join(", ")}]`);
   ensureFontsCacheSeed(resourcesRoot, fontsCacheDir);
+
+  // The default speech model ships inside the installer; put it where the worker looks, so the first transcription needs no
+  // network (see electron/model-seed.js). A dev checkout has no seed and keeps using the worker's own download.
+  const modelSeed = ensureModelSeed({ seedDir: path.join(resourcesRoot, "assets", "models-seed"), modelsDir, log: dlog });
+  dlog(`model seed: ${modelSeed.status}${modelSeed.error ? ` (${modelSeed.error})` : ""}`);
 
   // Frozen, Python-free transcription worker (python/build-worker.js) — this
   // is what makes the packaged app not need a system Python install at all.
@@ -198,6 +205,13 @@ async function startServer() {
     STORAGE_DRIVER: "local",
     SUBLY_UPLOADS_DIR: uploadsDir,
     SUBLY_MODEL_DIR: modelsDir,
+    // diagnostics (src/lib/diagnostics.ts): where the transcription log goes, and what version wrote it
+    SUBLY_LOG_DIR: logsDir,
+    SUBLY_DATA_DIR: base,
+    SUBLY_APP_VERSION: app.getVersion(),
+    // With the bundled model in place nothing may reach for the network: no metadata check, no download attempt, no waiting on a
+    // blocked connection. (Only set when the model is really there — a dev checkout without it still downloads.)
+    ...(modelSeed.status === "present" || modelSeed.status === "seeded" ? { HF_HUB_OFFLINE: "1" } : {}),
     SUBLY_FONTS_CACHE_DIR: fontsCacheDir,
     NODE_ENV: "production",
     ELECTRON_RUN_AS_NODE: "1",

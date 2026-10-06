@@ -55,3 +55,73 @@ test("6. assertNonEmptyDir returns the directory's entries when non-empty, and d
     fs.rmSync(tmpDir, { recursive: true, force: true });
   }
 });
+
+// ---- P23.1: the installer must carry the speech model --------------------------------------------------------------------
+const { assertModelSeed } = require("../electron-builder-after-pack.js");
+
+function writeSeed(appServerDir, { omit = [], emptyFile = null } = {}) {
+  const repo = path.join(appServerDir, "assets", "models-seed", "models--Systran--faster-whisper-small");
+  fs.mkdirSync(path.join(repo, "refs"), { recursive: true });
+  fs.mkdirSync(path.join(repo, "snapshots", "rev1"), { recursive: true });
+  fs.writeFileSync(path.join(repo, "refs", "main"), "rev1");
+  for (const name of ["config.json", "model.bin", "tokenizer.json", "vocabulary.txt"]) {
+    if (omit.includes(name)) continue;
+    fs.writeFileSync(path.join(repo, "snapshots", "rev1", name), name === emptyFile ? "" : "data");
+  }
+}
+
+test("P23.1 assertModelSeed passes when the whole model is in the packaged app-server", () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "subly-afterpack-seed-"));
+  try {
+    writeSeed(dir);
+    assert.doesNotThrow(() => assertModelSeed(dir));
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("P23.1 assertModelSeed ABORTS the build when the model is absent — an installer without it is the v0.1.20 first-run failure", () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "subly-afterpack-seed-"));
+  const saved = process.env.SUBLY_ALLOW_NO_MODEL_SEED;
+  delete process.env.SUBLY_ALLOW_NO_MODEL_SEED;
+  try {
+    assert.throws(() => assertModelSeed(dir), /bundled speech model is missing/);
+  } finally {
+    if (saved !== undefined) process.env.SUBLY_ALLOW_NO_MODEL_SEED = saved;
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("P23.1 assertModelSeed aborts on a truncated (zero-byte) model.bin or a missing tokenizer", () => {
+  const saved = process.env.SUBLY_ALLOW_NO_MODEL_SEED;
+  delete process.env.SUBLY_ALLOW_NO_MODEL_SEED;
+  try {
+    for (const opts of [{ emptyFile: "model.bin" }, { omit: ["tokenizer.json"] }]) {
+      const dir = fs.mkdtempSync(path.join(os.tmpdir(), "subly-afterpack-seed-"));
+      try {
+        writeSeed(dir, opts);
+        assert.throws(() => assertModelSeed(dir), /bundled speech model is missing/);
+      } finally {
+        fs.rmSync(dir, { recursive: true, force: true });
+      }
+    }
+  } finally {
+    if (saved !== undefined) process.env.SUBLY_ALLOW_NO_MODEL_SEED = saved;
+  }
+});
+
+test("P23.1 assertModelSeed can be waived explicitly (dev packaging) with SUBLY_ALLOW_NO_MODEL_SEED=1", () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "subly-afterpack-seed-"));
+  const saved = process.env.SUBLY_ALLOW_NO_MODEL_SEED;
+  process.env.SUBLY_ALLOW_NO_MODEL_SEED = "1";
+  const warn = console.warn;
+  console.warn = () => {};
+  try {
+    assert.doesNotThrow(() => assertModelSeed(dir));
+  } finally {
+    console.warn = warn;
+    if (saved === undefined) delete process.env.SUBLY_ALLOW_NO_MODEL_SEED;
+    else process.env.SUBLY_ALLOW_NO_MODEL_SEED = saved;
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});

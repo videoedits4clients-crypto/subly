@@ -32,12 +32,16 @@ Click **Export** and choose MP4, SRT, VTT, or TXT. MP4 export burns your caption
 
 ### First transcription
 
-The very first time you transcribe anything on a new install, SUBLY needs to download its local speech-recognition model — this requires an active internet connection and happens once. You'll see this reflected in the transcription progress. If you're offline on your very first transcription, it will not be able to complete until you connect.
+The speech-recognition model is bundled inside the installer. On first launch SUBLY copies it into your own data folder (a few seconds, no internet needed), so your very first transcription works exactly like every later one — including on a machine that is offline or behind a firewall. (Builds before the P23.1 fix, such as v0.1.20, did not bundle the model and downloaded ~480 MB on first use; if that download was blocked, transcription failed.)
 
 ### Offline usage
 
-Once that one-time model download has completed, transcription runs entirely on your own machine — no internet connection is needed for transcribing English or Hindi audio, editing captions, or exporting MP4/SRT/VTT/TXT.
+Transcription runs entirely on your own machine — no internet connection is needed for transcribing English or Hindi audio, editing captions, or exporting MP4/SRT/VTT/TXT.
 
 ### AI tools
 
-Local transcription (the core speech-to-text feature) is fully offline after the first-run model download. This is separate from the **AI text tools** (fix punctuation, remove filler words, rephrase/shorten) and **Translate** menu, which call a cloud text model and require a configured API capability to produce real output — without one, they run in a clearly-labeled Demo mode rather than failing silently. You do not need the AI text tools or Translate to use SUBLY's core transcribe-edit-export workflow.
+Local transcription (the core speech-to-text feature) is fully offline, from the first run. This is separate from the **AI text tools** (fix punctuation, remove filler words, rephrase/shorten) and **Translate** menu, which call a cloud text model and require a configured API capability to produce real output — without one, they run in a clearly-labeled Demo mode rather than failing silently. You do not need the AI text tools or Translate to use SUBLY's core transcribe-edit-export workflow.
+
+### If transcription fails
+
+SUBLY shows what went wrong (for example "SUBLY's transcription engine stopped unexpectedly") and **Retry** starts a genuinely new attempt. For support, attach the diagnostics file `%APPDATA%SUBLY datalogs	ranscription.log` — it records the stage, error code and exit codes of each attempt, with file paths reduced and no transcript text, file names or credentials.
